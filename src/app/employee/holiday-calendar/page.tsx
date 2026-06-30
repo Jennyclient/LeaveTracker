@@ -44,14 +44,17 @@ export default function HolidayCalendarPage() {
               return (
                 <div
                   key={day.toISOString()}
+                  title={holiday?.name}
                   className={cn(
-                    "flex min-h-12 flex-col items-center justify-center rounded-lg p-1 text-sm",
+                    "flex min-h-12 w-full min-w-0 flex-col items-center justify-center overflow-hidden rounded-lg p-1 text-sm",
                     holiday && "bg-primary/10 font-medium text-primary"
                   )}
                 >
                   <span>{format(day, "d")}</span>
                   {holiday && (
-                    <span className="mt-0.5 truncate text-[9px]">{holiday.name}</span>
+                    <span className="mt-0.5 w-full truncate text-center text-[9px] leading-tight">
+                      {holiday.name}
+                    </span>
                   )}
                 </div>
               );

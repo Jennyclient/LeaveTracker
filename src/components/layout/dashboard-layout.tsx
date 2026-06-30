@@ -42,6 +42,7 @@ export function DashboardLayout({ children, role, user }: DashboardLayoutProps) 
             role={role}
             collapsed={false}
             onToggle={() => setMobileOpen(false)}
+            floating={false}
           />
         </SheetContent>
       </Sheet>

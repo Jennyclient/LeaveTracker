@@ -22,6 +22,13 @@ interface SidebarProps {
   role: UserRole;
   collapsed: boolean;
   onToggle: () => void;
+  /**
+   * When true (default) the sidebar is pinned to the viewport with `fixed`
+   * positioning for the desktop layout. When false it fills its parent
+   * container, which is required when rendered inside the mobile Sheet so it
+   * doesn't escape the sheet and collide with its close button.
+   */
+  floating?: boolean;
 }
 
 function NavItemLink({
@@ -62,7 +69,13 @@ function NavItemLink({
   return link;
 }
 
-export function Sidebar({ navigation, role, collapsed, onToggle }: SidebarProps) {
+export function Sidebar({
+  navigation,
+  role,
+  collapsed,
+  onToggle,
+  floating = true,
+}: SidebarProps) {
   const pathname = usePathname();
 
   const isLinkActive = (href: string) =>
@@ -71,8 +84,13 @@ export function Sidebar({ navigation, role, collapsed, onToggle }: SidebarProps)
   return (
     <aside
       className={cn(
-        "fixed inset-y-0 left-0 z-30 flex flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300",
-        collapsed ? "w-[68px]" : "w-64"
+        "flex flex-col border-r border-sidebar-border bg-sidebar",
+        floating
+          ? cn(
+              "fixed inset-y-0 left-0 z-30 transition-all duration-300",
+              collapsed ? "w-[68px]" : "w-64"
+            )
+          : "h-full w-full"
       )}
     >
       <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-4">
@@ -121,23 +139,25 @@ export function Sidebar({ navigation, role, collapsed, onToggle }: SidebarProps)
         })}
       </nav>
 
-      <div className="border-t border-sidebar-border p-3">
-        <Button
-          variant="ghost"
-          size={collapsed ? "icon" : "default"}
-          className={cn("w-full", !collapsed && "justify-start")}
-          onClick={onToggle}
-        >
-          {collapsed ? (
-            <ChevronRight className="size-4" />
-          ) : (
-            <>
-              <ChevronLeft className="size-4" />
-              <span>Collapse</span>
-            </>
-          )}
-        </Button>
-      </div>
+      {floating && (
+        <div className="border-t border-sidebar-border p-3">
+          <Button
+            variant="ghost"
+            size={collapsed ? "icon" : "default"}
+            className={cn("w-full", !collapsed && "justify-start")}
+            onClick={onToggle}
+          >
+            {collapsed ? (
+              <ChevronRight className="size-4" />
+            ) : (
+              <>
+                <ChevronLeft className="size-4" />
+                <span>Collapse</span>
+              </>
+            )}
+          </Button>
+        </div>
+      )}
     </aside>
   );
 }

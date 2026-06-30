@@ -33,25 +33,28 @@ export default function ManagerDashboardPage() {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Team Size" value={managerStats.teamSize} icon={Users} />
+        <StatCard title="Team Size" value={managerStats.teamSize} icon={Users} href="/manager/team-balances" />
         <StatCard
           title="Pending Approvals"
           value={managerStats.pendingApprovals}
           change="Action required"
           trend="down"
           icon={ClipboardCheck}
+          href="/manager/team-requests"
         />
         <StatCard
           title="Employees On Leave"
           value={managerStats.onLeave}
           change="Today"
           icon={CalendarDays}
+          href="/manager/team-calendar"
         />
         <StatCard
           title="Upcoming Leaves"
           value={managerStats.upcomingLeaves}
           change="Next 7 days"
           icon={Clock}
+          href="/manager/team-calendar"
         />
       </div>
 

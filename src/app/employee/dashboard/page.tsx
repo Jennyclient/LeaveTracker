@@ -42,10 +42,10 @@ export default function EmployeeDashboardPage() {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Available Leaves" value={employeeStats.availableLeaves} icon={Wallet} />
-        <StatCard title="Pending Requests" value={employeeStats.pendingRequests} icon={Clock} />
-        <StatCard title="Approved Requests" value={employeeStats.approvedRequests} icon={CheckCircle} />
-        <StatCard title="Upcoming Holidays" value={employeeStats.upcomingHolidays} icon={CalendarDays} />
+        <StatCard title="Available Leaves" value={employeeStats.availableLeaves} icon={Wallet} href="/employee/leave-balance" />
+        <StatCard title="Pending Requests" value={employeeStats.pendingRequests} icon={Clock} href="/employee/my-leaves" />
+        <StatCard title="Approved Requests" value={employeeStats.approvedRequests} icon={CheckCircle} href="/employee/my-leaves" />
+        <StatCard title="Upcoming Holidays" value={employeeStats.upcomingHolidays} icon={CalendarDays} href="/employee/holiday-calendar" />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">

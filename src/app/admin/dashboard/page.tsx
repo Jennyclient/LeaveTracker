@@ -44,6 +44,7 @@ export default function AdminDashboardPage() {
           change="+5 this month"
           trend="up"
           icon={Users}
+          href="/admin/employees"
         />
         <StatCard
           title="Active Employees"
@@ -51,12 +52,14 @@ export default function AdminDashboardPage() {
           change="93% active rate"
           trend="up"
           icon={UserCheck}
+          href="/admin/employees"
         />
         <StatCard
           title="Employees On Leave"
           value={adminStats.onLeave}
           change="Today"
           icon={CalendarDays}
+          href="/admin/leave-requests"
         />
         <StatCard
           title="Pending Requests"
@@ -64,6 +67,7 @@ export default function AdminDashboardPage() {
           change="Needs attention"
           trend="down"
           icon={ClipboardList}
+          href="/admin/leave-requests"
         />
       </div>
 
