@@ -133,10 +133,10 @@ const modalHeaderClass =
   "shrink-0 border-b bg-muted/20 px-4 py-4 pr-12 sm:px-6 sm:py-5";
 
 const modalBodyClass =
-  "flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5";
+  "min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5";
 
 const modalFooterClass =
-  "mt-0 shrink-0 flex-col-reverse gap-2 border-t bg-muted/20 px-4 py-4 sm:flex-row sm:justify-end [&>button]:w-full sm:[&>button]:w-auto";
+  "mx-0 mb-0 mt-0 shrink-0 flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/20 px-4 py-4 sm:flex-row sm:justify-end [&>button]:w-full sm:[&>button]:w-auto";
 
 function ReadOnlyField({ label, value }: { label: string; value: ReactNode }) {
   return (
