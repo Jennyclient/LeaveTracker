@@ -4,17 +4,18 @@ import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameDa
 
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { holidays } from "@/data/mock-data";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
-
-const currentMonth = new Date(2026, 5, 1);
-const monthStart = startOfMonth(currentMonth);
-const monthEnd = endOfMonth(currentMonth);
-const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
-const startPadding = getDay(monthStart);
+import type { Holiday } from "@/types";
 
 export default function HolidayCalendarPage() {
+  const holidays: Holiday[] = [];
+  const currentMonth = new Date();
+  const monthStart = startOfMonth(currentMonth);
+  const monthEnd = endOfMonth(currentMonth);
+  const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
+  const startPadding = getDay(monthStart);
+
   const getHolidayForDay = (day: Date) =>
     holidays.find((h) => isSameDay(parseISO(h.date), day));
 
@@ -27,7 +28,7 @@ export default function HolidayCalendarPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>June 2026</CardTitle>
+          <CardTitle>{format(currentMonth, "MMMM yyyy")}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-muted-foreground mb-2">
@@ -68,20 +69,26 @@ export default function HolidayCalendarPage() {
           <CardTitle>Holiday List</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            {holidays.map((holiday) => (
-              <div
-                key={holiday.id}
-                className="flex items-center justify-between rounded-lg border p-3"
-              >
-                <div>
-                  <p className="font-medium">{holiday.name}</p>
-                  <p className="text-sm capitalize text-muted-foreground">{holiday.type}</p>
+          {holidays.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              No holidays configured
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {holidays.map((holiday) => (
+                <div
+                  key={holiday.id}
+                  className="flex items-center justify-between rounded-lg border p-3"
+                >
+                  <div>
+                    <p className="font-medium">{holiday.name}</p>
+                    <p className="text-sm capitalize text-muted-foreground">{holiday.type}</p>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{formatDate(holiday.date)}</p>
                 </div>
-                <p className="text-sm text-muted-foreground">{formatDate(holiday.date)}</p>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

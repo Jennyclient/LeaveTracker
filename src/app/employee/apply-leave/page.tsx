@@ -17,10 +17,11 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { employeeBalance, leaveTypes } from "@/data/mock-data";
 import { toast } from "sonner";
+import type { LeaveType } from "@/types";
 
 export default function ApplyLeavePage() {
+  const leaveTypes: LeaveType[] = [];
   const [halfDay, setHalfDay] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -29,10 +30,10 @@ export default function ApplyLeavePage() {
   };
 
   const balances = [
-    { type: "Paid Leave", available: employeeBalance.paidLeave },
-    { type: "Casual Leave", available: employeeBalance.casualLeave },
-    { type: "Sick Leave", available: employeeBalance.sickLeave },
-    { type: "Comp Off", available: employeeBalance.compOff },
+    { type: "Paid Leave", available: 0 },
+    { type: "Casual Leave", available: 0 },
+    { type: "Sick Leave", available: 0 },
+    { type: "Comp Off", available: 0 },
   ];
 
   return (
@@ -57,7 +58,7 @@ export default function ApplyLeavePage() {
                   </SelectTrigger>
                   <SelectContent>
                     {leaveTypes.slice(0, 4).map((lt) => (
-                      <SelectItem key={lt.id} value={lt.id}>{lt.name}</SelectItem>
+                      <SelectItem key={lt.id} value={lt.id}>{lt.leaveName}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

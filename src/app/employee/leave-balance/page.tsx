@@ -7,46 +7,26 @@ import { LeaveDetailsDrawer } from "@/components/shared/leave-details-drawer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { employeeBalance } from "@/data/mock-data";
 
-const balanceCards = [
-  {
-    type: "Paid Leave",
-    available: employeeBalance.paidLeave,
-    consumed: employeeBalance.consumed.paidLeave,
-    quota: employeeBalance.annualQuota.paidLeave,
-    carryForward: employeeBalance.carryForward.paidLeave,
-    color: "#3b82f6",
-  },
-  {
-    type: "Casual Leave",
-    available: employeeBalance.casualLeave,
-    consumed: employeeBalance.consumed.casualLeave,
-    quota: employeeBalance.annualQuota.casualLeave,
-    carryForward: employeeBalance.carryForward.casualLeave,
-    color: "#8b5cf6",
-  },
-  {
-    type: "Sick Leave",
-    available: employeeBalance.sickLeave,
-    consumed: employeeBalance.consumed.sickLeave,
-    quota: employeeBalance.annualQuota.sickLeave,
-    carryForward: employeeBalance.carryForward.sickLeave,
-    color: "#ef4444",
-  },
-  {
-    type: "Comp Off",
-    available: employeeBalance.compOff,
-    consumed: employeeBalance.consumed.compOff,
-    quota: 10,
-    carryForward: employeeBalance.carryForward.compOff,
-    color: "#f59e0b",
-  },
-];
+const balanceTypes = [
+  { type: "Paid Leave", color: "#3b82f6" },
+  { type: "Casual Leave", color: "#8b5cf6" },
+  { type: "Sick Leave", color: "#ef4444" },
+  { type: "Comp Off", color: "#f59e0b" },
+] as const;
 
 export default function LeaveBalancePage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedType, setSelectedType] = useState("Paid Leave");
+
+  const balanceCards = balanceTypes.map(({ type, color }) => ({
+    type,
+    color,
+    available: 0,
+    consumed: 0,
+    quota: 0,
+    carryForward: 0,
+  }));
 
   return (
     <div className="space-y-6">
@@ -86,7 +66,7 @@ export default function LeaveBalancePage() {
                   <p className="text-sm font-medium">{card.carryForward}</p>
                 </div>
               </div>
-              <Progress value={(card.available / card.quota) * 100} />
+              <Progress value={card.quota > 0 ? (card.available / card.quota) * 100 : 0} />
               <Button
                 variant="outline"
                 size="sm"

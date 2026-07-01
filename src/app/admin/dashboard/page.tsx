@@ -12,6 +12,7 @@ import {
 import { PageHeader } from "@/components/layout/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { TableEmptyRow } from "@/components/shared/table-empty-row";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -21,10 +22,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { adminStats, holidays, leaveRequests } from "@/data/mock-data";
 import { formatDate } from "@/lib/format";
+import type { Holiday, LeaveRequest } from "@/types";
 
 export default function AdminDashboardPage() {
+  const leaveRequests: LeaveRequest[] = [];
+  const holidays: Holiday[] = [];
+  const adminStats = {
+    totalEmployees: 0,
+    activeEmployees: 0,
+    onLeave: 0,
+    pendingRequests: 0,
+  };
+
   const recentRequests = leaveRequests.slice(0, 5);
   const upcomingHolidays = holidays
     .filter((h) => new Date(h.date) >= new Date())
@@ -92,7 +102,10 @@ export default function AdminDashboardPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {recentRequests.map((req) => (
+                {recentRequests.length === 0 ? (
+                  <TableEmptyRow colSpan={4} message="No recent leave requests" />
+                ) : (
+                  recentRequests.map((req) => (
                   <TableRow key={req.id}>
                     <TableCell className="font-medium">{req.employeeName}</TableCell>
                     <TableCell>{req.leaveType}</TableCell>
@@ -101,7 +114,8 @@ export default function AdminDashboardPage() {
                       <StatusBadge status={req.status} />
                     </TableCell>
                   </TableRow>
-                ))}
+                  ))
+                )}
               </TableBody>
             </Table>
           </CardContent>
@@ -121,13 +135,17 @@ export default function AdminDashboardPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {upcomingHolidays.map((holiday) => (
+                {upcomingHolidays.length === 0 ? (
+                  <TableEmptyRow colSpan={3} message="No upcoming holidays" />
+                ) : (
+                  upcomingHolidays.map((holiday) => (
                   <TableRow key={holiday.id}>
                     <TableCell className="font-medium">{holiday.name}</TableCell>
                     <TableCell>{formatDate(holiday.date)}</TableCell>
                     <TableCell className="capitalize">{holiday.type}</TableCell>
                   </TableRow>
-                ))}
+                  ))
+                )}
               </TableBody>
             </Table>
           </CardContent>

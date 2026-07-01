@@ -29,8 +29,7 @@ export const adminNavigation: NavEntry[] = [
   {
     title: "Leave Management",
     items: [
-      { title: "Leave Types", href: "/admin/leave-types", icon: "Tags" },
-      { title: "Leave Policies", href: "/admin/leave-policies", icon: "FileText" },
+      { title: "Leaves", href: "/admin/leave-types", icon: "Tags" },
       { title: "Leave Requests", href: "/admin/leave-requests", icon: "ClipboardList" },
       { title: "Leave Balances", href: "/admin/leave-balances", icon: "Wallet" },
     ],

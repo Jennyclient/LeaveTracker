@@ -15,7 +15,9 @@ import {
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { leaveUtilization, monthlyLeaveTrend } from "@/data/mock-data";
+
+const leaveUtilization: { type: string; used: number; total: number }[] = [];
+const monthlyLeaveTrend: { month: string; leaves: number; approved: number }[] = [];
 
 export function LeaveUtilizationChart() {
   return (
@@ -24,7 +26,12 @@ export function LeaveUtilizationChart() {
         <CardTitle>Leave Utilization</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {leaveUtilization.map((item) => (
+        {leaveUtilization.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            No utilization data available
+          </p>
+        ) : (
+          leaveUtilization.map((item) => (
           <div key={item.type} className="space-y-2">
             <div className="flex items-center justify-between text-sm">
               <span className="font-medium">{item.type}</span>
@@ -32,7 +39,8 @@ export function LeaveUtilizationChart() {
             </div>
             <Progress value={item.used} />
           </div>
-        ))}
+          ))
+        )}
       </CardContent>
     </Card>
   );

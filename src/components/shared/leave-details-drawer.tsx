@@ -16,8 +16,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { balanceHistory } from "@/data/mock-data";
+import { TableEmptyRow } from "@/components/shared/table-empty-row";
 import { formatDate } from "@/lib/format";
+import type { BalanceHistory } from "@/types";
 
 interface LeaveDetailsDrawerProps {
   open: boolean;
@@ -30,7 +31,8 @@ export function LeaveDetailsDrawer({
   onOpenChange,
   leaveType,
 }: LeaveDetailsDrawerProps) {
-  const history = balanceHistory.filter((h) => h.leaveType === leaveType);
+  const history: BalanceHistory[] = [];
+  const filteredHistory = history.filter((h) => h.leaveType === leaveType);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -63,8 +65,10 @@ export function LeaveDetailsDrawer({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {history.length > 0 ? (
-                  history.map((item) => (
+                {filteredHistory.length === 0 ? (
+                  <TableEmptyRow colSpan={4} message="No history available" />
+                ) : (
+                  filteredHistory.map((item) => (
                     <TableRow key={item.id}>
                       <TableCell>{formatDate(item.date)}</TableCell>
                       <TableCell
@@ -78,12 +82,6 @@ export function LeaveDetailsDrawer({
                       <TableCell>{item.reason}</TableCell>
                     </TableRow>
                   ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground">
-                      No history available
-                    </TableCell>
-                  </TableRow>
                 )}
               </TableBody>
             </Table>

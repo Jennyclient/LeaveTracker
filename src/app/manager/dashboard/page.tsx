@@ -1,3 +1,5 @@
+"use client";
+
 import {
   CalendarDays,
   ClipboardCheck,
@@ -8,6 +10,7 @@ import {
 import { PageHeader } from "@/components/layout/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { TableEmptyRow } from "@/components/shared/table-empty-row";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -17,12 +20,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { leaveRequests, managerStats } from "@/data/mock-data";
 import { formatDate } from "@/lib/format";
+import { useAuthStore } from "@/stores/auth-store";
+import type { LeaveRequest } from "@/types";
 
 export default function ManagerDashboardPage() {
+  const user = useAuthStore((s) => s.user);
+  const leaveRequests: LeaveRequest[] = [];
+  const managerStats = {
+    teamSize: 0,
+    pendingApprovals: 0,
+    onLeave: 0,
+    upcomingLeaves: 0,
+  };
+
   const pendingRequests = leaveRequests.filter(
-    (r) => r.managerId === "mgr-001" && r.status === "pending"
+    (r) => r.managerId === user?.id && r.status === "pending"
   );
 
   return (
@@ -74,7 +87,10 @@ export default function ManagerDashboardPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {pendingRequests.map((req) => (
+              {pendingRequests.length === 0 ? (
+                <TableEmptyRow colSpan={5} message="No pending leave requests" />
+              ) : (
+                pendingRequests.map((req) => (
                 <TableRow key={req.id}>
                   <TableCell className="font-medium">{req.employeeName}</TableCell>
                   <TableCell>{req.leaveType}</TableCell>
@@ -84,7 +100,8 @@ export default function ManagerDashboardPage() {
                   <TableCell>{req.days}</TableCell>
                   <TableCell><StatusBadge status={req.status} /></TableCell>
                 </TableRow>
-              ))}
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>

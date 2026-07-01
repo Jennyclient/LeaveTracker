@@ -5,6 +5,7 @@ import { Check, Eye, X } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { TableEmptyRow } from "@/components/shared/table-empty-row";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -22,11 +23,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { employees, leaveRequests } from "@/data/mock-data";
 import { formatDate } from "@/lib/format";
 import { toast } from "sonner";
+import type { Employee, LeaveRequest } from "@/types";
 
 export default function LeaveRequestsPage() {
+  const leaveRequests: LeaveRequest[] = [];
+  const employees: Employee[] = [];
   const [statusFilter, setStatusFilter] = useState("all");
 
   const filtered = leaveRequests.filter((req) => {
@@ -86,7 +89,10 @@ export default function LeaveRequestsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((req) => (
+            {filtered.length === 0 ? (
+              <TableEmptyRow colSpan={8} message="No leave requests found" />
+            ) : (
+              filtered.map((req) => (
               <TableRow key={req.id}>
                 <TableCell className="font-medium">{req.employeeName}</TableCell>
                 <TableCell>{req.leaveType}</TableCell>
@@ -123,7 +129,8 @@ export default function LeaveRequestsPage() {
                   </div>
                 </TableCell>
               </TableRow>
-            ))}
+              ))
+            )}
           </TableBody>
         </Table>
       </div>

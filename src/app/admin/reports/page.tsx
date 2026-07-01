@@ -3,9 +3,13 @@ import { BarChart3, Calendar, TrendingUp } from "lucide-react";
 import { MonthlyUsageBarChart } from "@/components/charts/leave-charts";
 import { PageHeader } from "@/components/layout/page-header";
 import { StatCard } from "@/components/shared/stat-card";
-import { reportStats } from "@/data/mock-data";
-
 export default function AdminReportsPage() {
+  const reportStats = {
+    totalLeaveTaken: 0,
+    averageUsage: 0,
+    mostUsedType: "—",
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader

@@ -3,6 +3,7 @@
 import { Minus, Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
+import { TableEmptyRow } from "@/components/shared/table-empty-row";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -12,10 +13,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { leaveBalances } from "@/data/mock-data";
 import { toast } from "sonner";
+import type { LeaveBalance } from "@/types";
 
 export default function LeaveBalancesPage() {
+  const leaveBalances: LeaveBalance[] = [];
   const handleAction = (action: string, name: string) => {
     toast.info(`${action} balance for ${name}`);
   };
@@ -40,7 +42,10 @@ export default function LeaveBalancesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {leaveBalances.map((bal) => (
+            {leaveBalances.length === 0 ? (
+              <TableEmptyRow colSpan={6} message="No leave balances found" />
+            ) : (
+              leaveBalances.map((bal) => (
               <TableRow key={bal.employeeId}>
                 <TableCell className="font-medium">{bal.employeeName}</TableCell>
                 <TableCell>{bal.paidLeave}</TableCell>
@@ -73,7 +78,8 @@ export default function LeaveBalancesPage() {
                   </div>
                 </TableCell>
               </TableRow>
-            ))}
+              ))
+            )}
           </TableBody>
         </Table>
       </div>

@@ -1,3 +1,5 @@
+"use client";
+
 import {
   CalendarDays,
   CheckCircle,
@@ -8,6 +10,7 @@ import {
 import { PageHeader } from "@/components/layout/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { TableEmptyRow } from "@/components/shared/table-empty-row";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -18,11 +21,31 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { employeeBalance, employeeStats, holidays, leaveRequests } from "@/data/mock-data";
 import { formatDate } from "@/lib/format";
+import { useAuthStore } from "@/stores/auth-store";
+import type { Holiday, LeaveRequest } from "@/types";
+
+const emptyBalance = {
+  paidLeave: 0,
+  casualLeave: 0,
+  sickLeave: 0,
+  compOff: 0,
+  annualQuota: { paidLeave: 0, casualLeave: 0, sickLeave: 0, compOff: 0 },
+};
 
 export default function EmployeeDashboardPage() {
-  const myRequests = leaveRequests.filter((r) => r.employeeId === "emp-001");
+  const user = useAuthStore((s) => s.user);
+  const leaveRequests: LeaveRequest[] = [];
+  const holidays: Holiday[] = [];
+  const employeeStats = {
+    availableLeaves: 0,
+    pendingRequests: 0,
+    approvedRequests: 0,
+    upcomingHolidays: 0,
+  };
+  const employeeBalance = emptyBalance;
+
+  const myRequests = leaveRequests.filter((r) => r.employeeId === user?.id);
   const upcomingHolidays = holidays
     .filter((h) => new Date(h.date) >= new Date())
     .slice(0, 3);
@@ -62,7 +85,7 @@ export default function EmployeeDashboardPage() {
                     {item.available} / {item.total}
                   </span>
                 </div>
-                <Progress value={(item.available / item.total) * 100} />
+                <Progress value={item.total > 0 ? (item.available / item.total) * 100 : 0} />
               </div>
             ))}
           </CardContent>
@@ -74,7 +97,12 @@ export default function EmployeeDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {upcomingHolidays.map((holiday) => (
+              {upcomingHolidays.length === 0 ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  No upcoming holidays
+                </p>
+              ) : (
+                upcomingHolidays.map((holiday) => (
                 <div key={holiday.id} className="flex items-center justify-between rounded-lg border p-3">
                   <div>
                     <p className="font-medium">{holiday.name}</p>
@@ -82,7 +110,8 @@ export default function EmployeeDashboardPage() {
                   </div>
                   <p className="text-sm text-muted-foreground">{formatDate(holiday.date)}</p>
                 </div>
-              ))}
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
@@ -101,13 +130,17 @@ export default function EmployeeDashboardPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {myRequests.map((req) => (
+                {myRequests.length === 0 ? (
+                  <TableEmptyRow colSpan={3} message="No recent requests" />
+                ) : (
+                  myRequests.map((req) => (
                   <TableRow key={req.id}>
                     <TableCell>{req.leaveType}</TableCell>
                     <TableCell>{req.days}</TableCell>
                     <TableCell><StatusBadge status={req.status} /></TableCell>
                   </TableRow>
-                ))}
+                  ))
+                )}
               </TableBody>
             </Table>
           </CardContent>

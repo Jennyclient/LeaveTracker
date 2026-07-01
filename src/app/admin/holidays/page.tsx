@@ -6,6 +6,7 @@ import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameDa
 
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
+import { TableEmptyRow } from "@/components/shared/table-empty-row";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
@@ -32,17 +33,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { holidays } from "@/data/mock-data";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
-
-const currentMonth = new Date(2026, 5, 1);
-const monthStart = startOfMonth(currentMonth);
-const monthEnd = endOfMonth(currentMonth);
-const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
-const startPadding = getDay(monthStart);
+import type { Holiday } from "@/types";
 
 export default function HolidaysPage() {
+  const holidays: Holiday[] = [];
+  const currentMonth = new Date();
+  const monthStart = startOfMonth(currentMonth);
+  const monthEnd = endOfMonth(currentMonth);
+  const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
+  const startPadding = getDay(monthStart);
   const [modalOpen, setModalOpen] = useState(false);
 
   const getHolidayForDay = (day: Date) =>
@@ -63,7 +64,7 @@ export default function HolidaysPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>June 2026</CardTitle>
+          <CardTitle>{format(currentMonth, "MMMM yyyy")}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-muted-foreground mb-2">
@@ -104,13 +105,17 @@ export default function HolidaysPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {holidays.map((holiday) => (
+            {holidays.length === 0 ? (
+              <TableEmptyRow colSpan={3} message="No holidays found" />
+            ) : (
+              holidays.map((holiday) => (
               <TableRow key={holiday.id}>
                 <TableCell className="font-medium">{holiday.name}</TableCell>
                 <TableCell>{formatDate(holiday.date)}</TableCell>
                 <TableCell className="capitalize">{holiday.type}</TableCell>
               </TableRow>
-            ))}
+              ))
+            )}
           </TableBody>
         </Table>
       </div>

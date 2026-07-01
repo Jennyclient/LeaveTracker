@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { LogOut, Settings, User } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -13,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { roleLabels } from "@/lib/navigation";
+import { useAuthStore } from "@/stores/auth-store";
 import type { User as UserType, UserRole } from "@/types";
 
 interface UserMenuProps {
@@ -20,6 +22,14 @@ interface UserMenuProps {
 }
 
 export function UserMenu({ user }: UserMenuProps) {
+  const router = useRouter();
+  const logout = useAuthStore((state) => state.logout);
+
+  const handleLogout = () => {
+    logout();
+    router.push("/login");
+  };
+
   const initials = user.name
     .split(" ")
     .map((n) => n[0])
@@ -88,11 +98,12 @@ export function UserMenu({ user }: UserMenuProps) {
           </DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/auth/login" className="cursor-pointer text-destructive">
-            <LogOut className="mr-2 size-4" />
-            Sign out
-          </Link>
+        <DropdownMenuItem
+          className="cursor-pointer text-destructive"
+          onClick={handleLogout}
+        >
+          <LogOut className="mr-2 size-4" />
+          Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

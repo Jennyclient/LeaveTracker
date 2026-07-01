@@ -1,4 +1,7 @@
+"use client";
+
 import { PageHeader } from "@/components/layout/page-header";
+import { TableEmptyRow } from "@/components/shared/table-empty-row";
 import { Progress } from "@/components/ui/progress";
 import {
   Table,
@@ -8,11 +11,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { employees, leaveBalances } from "@/data/mock-data";
+import { useAuthStore } from "@/stores/auth-store";
+import type { Employee, LeaveBalance } from "@/types";
 
 export default function TeamBalancesPage() {
+  const user = useAuthStore((s) => s.user);
+  const employees: Employee[] = [];
+  const leaveBalances: LeaveBalance[] = [];
+
   const teamBalances = leaveBalances.filter((b) =>
-    employees.some((e) => e.id === b.employeeId && e.managerId === "mgr-001")
+    employees.some((e) => e.id === b.employeeId && e.managerId === user?.id)
   );
 
   return (
@@ -33,7 +41,10 @@ export default function TeamBalancesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {teamBalances.map((bal) => {
+            {teamBalances.length === 0 ? (
+              <TableEmptyRow colSpan={4} message="No team leave balances found" />
+            ) : (
+              teamBalances.map((bal) => {
               const available = bal.paidLeave + bal.casualLeave + bal.sickLeave + bal.compOff;
               const consumed =
                 bal.consumed.paidLeave +
@@ -56,7 +67,8 @@ export default function TeamBalancesPage() {
                   </TableCell>
                 </TableRow>
               );
-            })}
+            })
+            )}
           </TableBody>
         </Table>
       </div>

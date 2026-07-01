@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { TableEmptyRow } from "@/components/shared/table-empty-row";
 import {
   Select,
   SelectContent,
@@ -19,15 +20,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { leaveRequests, leaveTypes } from "@/data/mock-data";
 import { formatDate } from "@/lib/format";
+import { useAuthStore } from "@/stores/auth-store";
+import type { LeaveRequest, LeaveType } from "@/types";
 
 export default function MyLeavesPage() {
+  const user = useAuthStore((s) => s.user);
+  const leaveRequests: LeaveRequest[] = [];
+  const leaveTypes: LeaveType[] = [];
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
 
   const myLeaves = leaveRequests.filter((r) => {
-    if (r.employeeId !== "emp-001") return false;
+    if (r.employeeId !== user?.id) return false;
     if (statusFilter !== "all" && r.status !== statusFilter) return false;
     if (typeFilter !== "all" && r.leaveTypeId !== typeFilter) return false;
     return true;
@@ -59,7 +64,7 @@ export default function MyLeavesPage() {
           <SelectContent>
             <SelectItem value="all">All Types</SelectItem>
             {leaveTypes.slice(0, 4).map((lt) => (
-              <SelectItem key={lt.id} value={lt.id}>{lt.name}</SelectItem>
+              <SelectItem key={lt.id} value={lt.id}>{lt.leaveName}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -77,7 +82,10 @@ export default function MyLeavesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {myLeaves.map((leave) => (
+            {myLeaves.length === 0 ? (
+              <TableEmptyRow colSpan={5} message="No leave requests found" />
+            ) : (
+              myLeaves.map((leave) => (
               <TableRow key={leave.id}>
                 <TableCell>
                   {formatDate(leave.startDate)} — {formatDate(leave.endDate)}
@@ -87,7 +95,8 @@ export default function MyLeavesPage() {
                 <TableCell><StatusBadge status={leave.status} /></TableCell>
                 <TableCell>{formatDate(leave.appliedDate)}</TableCell>
               </TableRow>
-            ))}
+              ))
+            )}
           </TableBody>
         </Table>
       </div>

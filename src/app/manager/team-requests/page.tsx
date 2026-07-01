@@ -5,6 +5,7 @@ import { Check, Eye, X } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { TableEmptyRow } from "@/components/shared/table-empty-row";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -21,14 +22,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { leaveRequests } from "@/data/mock-data";
 import { formatDate } from "@/lib/format";
+import { useAuthStore } from "@/stores/auth-store";
 import { toast } from "sonner";
 import type { LeaveRequest } from "@/types";
 
 export default function TeamRequestsPage() {
+  const user = useAuthStore((s) => s.user);
+  const leaveRequests: LeaveRequest[] = [];
   const [selectedRequest, setSelectedRequest] = useState<LeaveRequest | null>(null);
-  const teamRequests = leaveRequests.filter((r) => r.managerId === "mgr-001");
+  const teamRequests = leaveRequests.filter((r) => r.managerId === user?.id);
 
   const handleAction = (action: string) => {
     if (!selectedRequest) return;
@@ -57,7 +60,10 @@ export default function TeamRequestsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {teamRequests.map((req) => (
+            {teamRequests.length === 0 ? (
+              <TableEmptyRow colSpan={7} message="No team leave requests found" />
+            ) : (
+              teamRequests.map((req) => (
               <TableRow key={req.id}>
                 <TableCell className="font-medium">{req.employeeName}</TableCell>
                 <TableCell>{req.leaveType}</TableCell>
@@ -101,7 +107,8 @@ export default function TeamRequestsPage() {
                   </div>
                 </TableCell>
               </TableRow>
-            ))}
+              ))
+            )}
           </TableBody>
         </Table>
       </div>

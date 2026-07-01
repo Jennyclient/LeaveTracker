@@ -11,9 +11,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { notifications } from "@/data/mock-data";
+
+interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  time: string;
+  read: boolean;
+}
 
 export function NotificationsPopover() {
+  const notifications: Notification[] = [];
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
@@ -31,7 +39,12 @@ export function NotificationsPopover() {
       <DropdownMenuContent align="end" className="w-80">
         <DropdownMenuLabel>Notifications</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {notifications.map((notification) => (
+        {notifications.length === 0 ? (
+          <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+            No notifications
+          </div>
+        ) : (
+          notifications.map((notification) => (
           <DropdownMenuItem
             key={notification.id}
             className="flex flex-col items-start gap-1 p-3"
@@ -49,7 +62,8 @@ export function NotificationsPopover() {
               {notification.time}
             </span>
           </DropdownMenuItem>
-        ))}
+          ))
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

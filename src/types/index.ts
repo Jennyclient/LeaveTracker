@@ -17,11 +17,24 @@ export interface User {
   employeeId?: string;
 }
 
-export interface Manager {
+export interface ManagerTeamMember {
   id: string;
   name: string;
+  designation: string;
+  status: "active" | "inactive";
+}
+
+export interface Manager {
+  id: string;
+  employeeId: string;
+  name: string;
   email: string;
+  contactNo?: string;
+  designation: string;
   teamSize: number;
+  status: "active" | "inactive";
+  joinDate: string;
+  teamMembers: ManagerTeamMember[];
 }
 
 export interface Employee {
@@ -29,35 +42,32 @@ export interface Employee {
   employeeId: string;
   name: string;
   email: string;
+  contactNo?: string;
+  designation: string;
   manager: string;
   managerId: string;
-  leavePolicy: string;
-  leavePolicyId: string;
+  leavePolicy?: string;
+  leavePolicyId?: string;
   status: "active" | "inactive";
   joinDate: string;
-  designation: string;
 }
 
 export interface LeaveType {
   id: string;
-  name: string;
+  leaveName: string;
   annualQuota: number;
   accrualType: AccrualType;
   carryForward: boolean;
   maxCarryForward: number;
   encashment: boolean;
-  active: boolean;
-  color: string;
-}
-
-export interface LeavePolicy {
-  id: string;
-  name: string;
-  assignedEmployees: number;
-  leaveTypeIds: string[];
+  status: "active" | "inactive";
+  policyName: string;
   accrualRules: string;
   carryForwardRules: string;
   probationRules: string;
+  createdAt?: string;
+  updatedAt?: string;
+  color: string;
 }
 
 export interface LeaveRequest {
