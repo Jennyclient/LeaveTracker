@@ -328,7 +328,6 @@ export default function EmployeesPage() {
 
       <EmployeeModal
         state={modal}
-        managers={managers}
         onClose={() => setModal(null)}
         onSuccess={() => {
           void refreshEmployees();

@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 import { loginUser, mapApiUserToUser } from "@/lib/auth";
-import type { User, UserRole } from "@/types";
+import type { User, LoginPortal } from "@/types";
 
 interface AuthState {
   user: User | null;
@@ -11,7 +11,7 @@ interface AuthState {
   isLoggedIn: boolean;
   isLoading: boolean;
   hasHydrated: boolean;
-  login: (email: string, password: string, role: UserRole) => Promise<User>;
+  login: (email: string, password: string, portal: LoginPortal) => Promise<User>;
   logout: () => void;
   setHasHydrated: (value: boolean) => void;
 }
@@ -26,10 +26,10 @@ export const useAuthStore = create<AuthState>()(
       isLoading: false,
       hasHydrated: false,
 
-      login: async (email, password, role) => {
+      login: async (email, password, portal) => {
         set({ isLoading: true });
         try {
-          const response = await loginUser(email, password, role);
+          const response = await loginUser(email, password, portal);
 
           if (!response.success) {
             throw new Error(response.message ?? "Login failed");

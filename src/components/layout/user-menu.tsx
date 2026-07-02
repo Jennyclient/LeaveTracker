@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { roleLabels } from "@/lib/navigation";
+import { canAccessRole, roleLabels } from "@/lib/navigation";
 import { useAuthStore } from "@/stores/auth-store";
 import type { User as UserType, UserRole } from "@/types";
 
@@ -40,7 +40,7 @@ export function UserMenu({ user }: UserMenuProps) {
     { role: "admin", label: "Admin Portal", href: "/admin/dashboard" },
     { role: "manager", label: "Manager Portal", href: "/manager/dashboard" },
     { role: "employee", label: "Employee Portal", href: "/employee/dashboard" },
-  ];
+  ].filter((entry) => canAccessRole(user, entry.role));
 
   const profileHref =
     user.role === "employee" ? "/employee/profile" : `/${user.role}/dashboard`;

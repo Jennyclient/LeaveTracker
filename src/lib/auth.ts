@@ -1,7 +1,7 @@
 import axios from "axios";
 
 import { encrypt } from "@/lib/encrypt";
-import type { User, UserRole } from "@/types";
+import type { User, LoginPortal, UserRole } from "@/types";
 
 const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
 
@@ -20,6 +20,7 @@ export interface ApiUser {
   email: string;
   joiningDate: string;
   role: ApiRole;
+  isManager?: boolean;
 }
 
 export interface LoginResponse {
@@ -42,6 +43,11 @@ export const roleFromApi: Record<ApiRole, UserRole> = {
   EMPLOYEE: "employee",
 };
 
+export const portalToApi: Record<LoginPortal, ApiRole> = {
+  admin: "ADMIN",
+  employee: "EMPLOYEE",
+};
+
 export function mapApiUserToUser(apiUser: ApiUser): User {
   return {
     id: apiUser.id,
@@ -49,18 +55,19 @@ export function mapApiUserToUser(apiUser: ApiUser): User {
     name: apiUser.name,
     email: apiUser.email,
     role: roleFromApi[apiUser.role],
+    isManager: apiUser.isManager ?? false,
   };
 }
 
 export async function loginUser(
   email: string,
   password: string,
-  role: UserRole
+  portal: LoginPortal
 ): Promise<LoginResponse> {
   const payload: LoginPayload = {
     email: email.trim().toLowerCase(),
     password: encrypt(password.trim()),
-    role: roleToApi[role],
+    role: portalToApi[portal],
   };
 
   try {

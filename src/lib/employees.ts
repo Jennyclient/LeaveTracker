@@ -164,6 +164,44 @@ export async function getManagersList(): Promise<ManagerOption[]> {
   }));
 }
 
+export async function getEmployeeManagerOptions(
+  mode: "add" | "edit",
+  employeeId?: string
+): Promise<ManagerOption[]> {
+  if (mode === "edit") {
+    if (!employeeId) {
+      throw new Error("Employee id is required to load managers");
+    }
+
+    const { data } = await API.post<GetManagersListResponse>(
+      "/admin/set-employee-manager",
+      { id: employeeId }
+    );
+
+    if (!data.success) {
+      throw new Error(data.message ?? "Failed to fetch managers");
+    }
+
+    return data.managers.map((manager) => ({
+      id: manager.id,
+      name: manager.name,
+    }));
+  }
+
+  const { data } = await API.get<GetManagersListResponse>(
+    "/admin/set-employee-manager"
+  );
+
+  if (!data.success) {
+    throw new Error(data.message ?? "Failed to fetch managers");
+  }
+
+  return data.managers.map((manager) => ({
+    id: manager.id,
+    name: manager.name,
+  }));
+}
+
 export async function loadEmployeesPageData(
   filters?: EmployeeListFilters
 ): Promise<{

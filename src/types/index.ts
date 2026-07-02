@@ -1,5 +1,7 @@
 export type UserRole = "admin" | "manager" | "employee";
 
+export type LoginPortal = "admin" | "employee";
+
 export type LeaveStatus = "pending" | "approved" | "rejected" | "cancelled";
 
 export type AccrualType = "monthly" | "quarterly" | "yearly" | "none";
@@ -11,6 +13,7 @@ export interface User {
   name: string;
   email: string;
   role: UserRole;
+  isManager?: boolean;
   avatar?: string;
   manager?: string;
   leavePolicy?: string;

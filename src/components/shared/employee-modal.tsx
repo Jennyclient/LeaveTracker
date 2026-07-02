@@ -1,7 +1,7 @@
 "use client";
 
 import type { ComponentType, ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Eye, EyeOff, Loader2, Pencil, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createEmployee, updateEmployee, type ManagerOption } from "@/lib/employees";
+import { createEmployee, getEmployeeManagerOptions, updateEmployee, type ManagerOption } from "@/lib/employees";
 import { formatDate } from "@/lib/format";
 import type { Employee } from "@/types";
 
@@ -118,7 +118,6 @@ function ReadOnlyField({ label, value }: { label: string; value: ReactNode }) {
 interface EmployeeModalFormProps {
   mode: "add" | "edit";
   employee: Employee | null;
-  managers: ManagerOption[];
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -126,15 +125,48 @@ interface EmployeeModalFormProps {
 function EmployeeModalForm({
   mode,
   employee,
-  managers,
   onClose,
   onSuccess,
 }: EmployeeModalFormProps) {
   const [form, setForm] = useState<FormState>(() =>
     mode === "edit" && employee ? employeeToForm(employee) : emptyForm
   );
+  const [managers, setManagers] = useState<ManagerOption[]>([]);
+  const [isLoadingManagers, setIsLoadingManagers] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadManagers() {
+      try {
+        const employeeId = mode === "edit" && employee ? employee.id : undefined;
+        const options = await getEmployeeManagerOptions(mode, employeeId);
+
+        if (!cancelled) {
+          setManagers(options);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          const message =
+            error instanceof Error ? error.message : "Failed to load managers";
+          toast.error(message);
+          setManagers([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingManagers(false);
+        }
+      }
+    }
+
+    void loadManagers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, employee]);
 
   const managerOptions = managers;
 
@@ -307,10 +339,14 @@ function EmployeeModalForm({
               <Select
                 value={form.managerId}
                 onValueChange={(value) => updateField("managerId", value)}
-                disabled={isSubmitting}
+                disabled={isSubmitting || isLoadingManagers}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder={placeholders.manager} />
+                  <SelectValue
+                    placeholder={
+                      isLoadingManagers ? "Loading managers..." : placeholders.manager
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Select Manager</SelectItem>
@@ -415,7 +451,6 @@ function EmployeeModalView({
 
 interface EmployeeModalProps {
   state: EmployeeModalState | null;
-  managers: ManagerOption[];
   onClose: () => void;
   onSuccess: () => void;
   onEdit: (employee: Employee) => void;
@@ -423,7 +458,6 @@ interface EmployeeModalProps {
 
 export function EmployeeModal({
   state,
-  managers,
   onClose,
   onSuccess,
   onEdit,
@@ -469,7 +503,6 @@ export function EmployeeModal({
             key={formKey}
             mode={mode}
             employee={employee}
-            managers={managers}
             onClose={onClose}
             onSuccess={onSuccess}
           />

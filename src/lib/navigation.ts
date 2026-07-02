@@ -1,4 +1,4 @@
-import type { UserRole } from "@/types";
+import type { User, UserRole } from "@/types";
 
 export interface NavLink {
   title: string;
@@ -76,3 +76,26 @@ export const roleLabels: Record<UserRole, string> = {
   manager: "Manager",
   employee: "Employee",
 };
+
+const roleRoutes: Record<UserRole, string> = {
+  admin: "/admin/dashboard",
+  manager: "/manager/dashboard",
+  employee: "/employee/dashboard",
+};
+
+export function canAccessRole(user: User, role: UserRole): boolean {
+  switch (role) {
+    case "admin":
+      return user.role === "admin";
+    case "employee":
+      return user.role === "employee" || user.role === "manager";
+    case "manager":
+      return user.role === "manager" || (user.role === "employee" && Boolean(user.isManager));
+    default:
+      return false;
+  }
+}
+
+export function getDefaultDashboardPath(user: User): string {
+  return roleRoutes[user.role];
+}

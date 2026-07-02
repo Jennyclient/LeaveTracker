@@ -17,21 +17,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getDefaultDashboardPath } from "@/lib/navigation";
 import { useAuthStore } from "@/stores/auth-store";
-import type { UserRole } from "@/types";
-
-const roleRoutes: Record<UserRole, string> = {
-  admin: "/admin/dashboard",
-  manager: "/manager/dashboard",
-  employee: "/employee/dashboard",
-};
+import type { LoginPortal } from "@/types";
 
 export default function LoginPage() {
   const router = useRouter();
   const { login, isLoading, isLoggedIn, user, hasHydrated } = useAuthStore();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<UserRole | "">("");
+  const [portal, setPortal] = useState<LoginPortal | "">("");
   const [showPassword, setShowPassword] = useState(false);
   const passwordInputRef = useRef<HTMLInputElement>(null);
 
@@ -48,14 +43,14 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (hasHydrated && isLoggedIn && user) {
-      router.replace(roleRoutes[user.role]);
+      router.replace(getDefaultDashboardPath(user));
     }
   }, [hasHydrated, isLoggedIn, user, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!role) {
+    if (!portal) {
       toast.error("Please select a portal");
       return;
     }
@@ -68,9 +63,9 @@ export default function LoginPage() {
     }
 
     try {
-      const loggedInUser = await login(email, passwordValue, role);
+      const loggedInUser = await login(email, passwordValue, portal);
       toast.success("Signed in successfully");
-      router.push(roleRoutes[loggedInUser.role]);
+      router.push(getDefaultDashboardPath(loggedInUser));
     } catch (error) {
       const message = error instanceof Error ? error.message : "Login failed";
       toast.error(message);
@@ -115,20 +110,15 @@ export default function LoginPage() {
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4" autoComplete="off">
               <div className="space-y-2">
-                <Label htmlFor="role">Portal</Label>
-                <Select value={role} onValueChange={(v) => setRole(v as UserRole)}>
-                  <SelectTrigger id="role" disabled={isLoading}>
+                <Label htmlFor="portal">Portal</Label>
+                <Select value={portal} onValueChange={(v) => setPortal(v as LoginPortal)}>
+                  <SelectTrigger id="portal" disabled={isLoading}>
                     <SelectValue placeholder="Select portal" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="admin">
                       <span className="flex items-center gap-2">
                         <Building2 className="size-4" /> Admin Portal
-                      </span>
-                    </SelectItem>
-                    <SelectItem value="manager">
-                      <span className="flex items-center gap-2">
-                        <UserCircle className="size-4" /> Manager Portal
                       </span>
                     </SelectItem>
                     <SelectItem value="employee">
