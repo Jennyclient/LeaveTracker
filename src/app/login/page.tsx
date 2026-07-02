@@ -1,14 +1,26 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, Eye, EyeOff, Leaf, Loader2, UserCircle } from "lucide-react";
+import {
+  BadgeCheck,
+  Building2,
+  CalendarCheck2,
+  Eye,
+  EyeOff,
+  Leaf,
+  Loader2,
+  ShieldCheck,
+  UserCircle,
+} from "lucide-react";
 
 import { toast } from "sonner";
 
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -29,6 +41,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [portal, setPortal] = useState<LoginPortal | "">("");
+  const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const passwordInputRef = useRef<HTMLInputElement>(null);
 
@@ -75,8 +88,10 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen">
-      <div className="relative hidden w-1/2 flex-col justify-between bg-primary p-10 text-primary-foreground lg:flex">
+    <div className="flex min-h-screen bg-background">
+      <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-primary p-10 text-primary-foreground lg:flex">
+        <div className="absolute -top-24 -right-20 h-64 w-64 rounded-full bg-white/10 blur-2xl" />
+        <div className="absolute -bottom-24 left-4 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
         <div className="flex items-center gap-2">
           <div className="flex size-10 items-center justify-center rounded-lg bg-white/20">
             <Leaf className="size-5" />
@@ -90,6 +105,25 @@ export default function LoginPage() {
           <p className="text-lg text-primary-foreground/80">
             Streamline leave requests, approvals, and tracking for your entire organization.
           </p>
+          <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur">
+            <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-primary-foreground/80">
+              Why teams choose LeaveFlow
+            </p>
+            <ul className="space-y-2 text-sm">
+              <li className="flex items-center gap-2">
+                <CalendarCheck2 className="size-4 shrink-0" />
+                Smart leave calendars and conflict visibility
+              </li>
+              <li className="flex items-center gap-2">
+                <BadgeCheck className="size-4 shrink-0" />
+                Faster approvals with clear ownership
+              </li>
+              <li className="flex items-center gap-2">
+                <ShieldCheck className="size-4 shrink-0" />
+                Policy-based controls and secure workflows
+              </li>
+            </ul>
+          </div>
         </div>
         <p className="text-sm text-primary-foreground/60">
           Trusted by 500+ companies worldwide
@@ -101,7 +135,7 @@ export default function LoginPage() {
           <ThemeToggle />
         </div>
 
-        <Card className="w-full max-w-md">
+        <Card className="w-full max-w-md border-border/60 shadow-xl">
           <CardHeader className="text-center">
             <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-lg bg-primary text-primary-foreground lg:hidden">
               <Leaf className="size-6" />
@@ -112,7 +146,9 @@ export default function LoginPage() {
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4" autoComplete="off">
               <div className="space-y-2">
-                <Label htmlFor="portal">Portal</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="portal">Portal</Label>
+                </div>
                 <Select value={portal} onValueChange={(v) => setPortal(v as LoginPortal)}>
                   <SelectTrigger id="portal" disabled={isLoading}>
                     <SelectValue placeholder="Select portal" />
@@ -179,6 +215,29 @@ export default function LoginPage() {
                     </span>
                   </button>
                 </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="remember-me"
+                    checked={rememberMe}
+                    onCheckedChange={(checked) => setRememberMe(checked === true)}
+                    disabled={isLoading}
+                  />
+                  <Label
+                    htmlFor="remember-me"
+                    className="cursor-pointer text-sm font-normal text-muted-foreground"
+                  >
+                    Remember me
+                  </Label>
+                </div>
+                <Link
+                  href="/login"
+                  className="text-sm font-medium text-primary hover:underline"
+                >
+                  Forgot password?
+                </Link>
               </div>
 
               <Button type="submit" className="w-full" disabled={isLoading}>
