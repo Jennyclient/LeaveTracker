@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, Eye, EyeOff, Leaf, Loader2, UserCircle } from "lucide-react";
+
 import { toast } from "sonner";
 
 import { ThemeToggle } from "@/components/theme/theme-toggle";
@@ -17,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { LOGIN_PORTAL_OPTIONS } from "@/lib/auth";
 import { getDefaultDashboardPath } from "@/lib/navigation";
 import { useAuthStore } from "@/stores/auth-store";
 import type { LoginPortal } from "@/types";
@@ -116,16 +118,18 @@ export default function LoginPage() {
                     <SelectValue placeholder="Select portal" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="admin">
-                      <span className="flex items-center gap-2">
-                        <Building2 className="size-4" /> Admin Portal
-                      </span>
-                    </SelectItem>
-                    <SelectItem value="employee">
-                      <span className="flex items-center gap-2">
-                        <UserCircle className="size-4" /> Employee Portal
-                      </span>
-                    </SelectItem>
+                    {LOGIN_PORTAL_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        <span className="flex items-center gap-2">
+                          {option.value === "admin" ? (
+                            <Building2 className="size-4" />
+                          ) : (
+                            <UserCircle className="size-4" />
+                          )}{" "}
+                          {option.label}
+                        </span>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

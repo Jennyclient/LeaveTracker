@@ -36,11 +36,13 @@ export function UserMenu({ user }: UserMenuProps) {
     .join("")
     .slice(0, 2);
 
-  const switchRoles: { role: UserRole; label: string; href: string }[] = [
+  const portalOptions: { role: UserRole; label: string; href: string }[] = [
     { role: "admin", label: "Admin Portal", href: "/admin/dashboard" },
     { role: "manager", label: "Manager Portal", href: "/manager/dashboard" },
     { role: "employee", label: "Employee Portal", href: "/employee/dashboard" },
-  ].filter((entry) => canAccessRole(user, entry.role));
+  ];
+
+  const switchRoles = portalOptions.filter((entry) => canAccessRole(user, entry.role));
 
   const profileHref =
     user.role === "employee" ? "/employee/profile" : `/${user.role}/dashboard`;

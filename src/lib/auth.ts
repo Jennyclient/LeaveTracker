@@ -43,6 +43,11 @@ export const roleFromApi: Record<ApiRole, UserRole> = {
   EMPLOYEE: "employee",
 };
 
+export const LOGIN_PORTAL_OPTIONS: { value: LoginPortal; label: string }[] = [
+  { value: "admin", label: "Admin Portal" },
+  { value: "employee", label: "Employee Portal" },
+];
+
 export const portalToApi: Record<LoginPortal, ApiRole> = {
   admin: "ADMIN",
   employee: "EMPLOYEE",
