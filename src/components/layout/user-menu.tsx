@@ -48,6 +48,7 @@ export function UserMenu({ user }: UserMenuProps) {
     user.role === "employee" ? "/employee/profile" : `/${user.role}/dashboard`;
   const settingsHref =
     user.role === "admin" ? "/admin/settings" : "/employee/profile";
+  const showProfile = user.role !== "admin";
 
   return (
     <DropdownMenu>
@@ -76,12 +77,14 @@ export function UserMenu({ user }: UserMenuProps) {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href={profileHref} className="cursor-pointer">
-            <User className="mr-2 size-4" />
-            Profile
-          </Link>
-        </DropdownMenuItem>
+        {showProfile && (
+          <DropdownMenuItem asChild>
+            <Link href={profileHref} className="cursor-pointer">
+              <User className="mr-2 size-4" />
+              Profile
+            </Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem asChild>
           <Link href={settingsHref} className="cursor-pointer">
             <Settings className="mr-2 size-4" />

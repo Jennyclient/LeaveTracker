@@ -20,6 +20,30 @@ export interface User {
   employeeId?: string;
 }
 
+export interface EmployeeProfileManager {
+  id: string;
+  name: string;
+  email: string;
+  contactNo: string;
+  designation: string;
+  employeeId: string;
+}
+
+export interface EmployeeProfile {
+  id: string;
+  employeeId: string;
+  name: string;
+  email: string;
+  contactNo: string;
+  designation: string;
+  joiningDate: string;
+  role: UserRole;
+  status: "active" | "inactive";
+  manager: EmployeeProfileManager | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface ManagerTeamMember {
   id: string;
   name: string;
@@ -88,6 +112,7 @@ export interface LeaveRequest {
   reason: string;
   appliedDate: string;
   halfDay?: boolean;
+  attachmentDoc?: string;
 }
 
 export interface LeaveBalance {
@@ -131,6 +156,38 @@ export interface Holiday {
   name: string;
   date: string;
   type: HolidayType;
+}
+
+export interface ApprovedLeaveCalendarEntry {
+  id: string;
+  employeeId: string;
+  employeeName?: string;
+  startDate: string;
+  endDate: string;
+  leaveType: string;
+  status: string;
+  days: number;
+}
+
+export interface HolidayCalendarData {
+  holidays: Holiday[];
+  approvedLeaves: ApprovedLeaveCalendarEntry[];
+}
+
+export interface AdminSettings {
+  id: string;
+  organization: {
+    organizationName: string;
+    timezone: string;
+    fiscalYearStart: string;
+  };
+  leaveSettings: {
+    weekendAsWorkingDay: boolean;
+    autoApproveSickLeave: boolean;
+    emailNotification: boolean;
+  };
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface NavItem {

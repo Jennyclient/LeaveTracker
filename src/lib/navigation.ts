@@ -35,7 +35,6 @@ export const adminNavigation: NavEntry[] = [
     ],
   },
   { title: "Holiday Management", href: "/admin/holidays", icon: "CalendarDays" },
-  { title: "Reports", href: "/admin/reports", icon: "BarChart3" },
   { title: "Settings", href: "/admin/settings", icon: "Settings" },
 ];
 
@@ -44,7 +43,6 @@ export const managerNavigation: NavLink[] = [
   { title: "Team Requests", href: "/manager/team-requests", icon: "ClipboardCheck" },
   { title: "Team Calendar", href: "/manager/team-calendar", icon: "Calendar" },
   { title: "Team Balances", href: "/manager/team-balances", icon: "Wallet" },
-  { title: "Reports", href: "/manager/reports", icon: "BarChart3" },
 ];
 
 export const employeeNavigation: NavLink[] = [

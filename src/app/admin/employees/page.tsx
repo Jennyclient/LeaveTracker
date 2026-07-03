@@ -8,6 +8,7 @@ import {
   Search,
   Trash2,
   UserCircle,
+  UserPlus,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -46,7 +47,6 @@ import {
 } from "@/lib/employees";
 import { formatDate } from "@/lib/format";
 import { getInitials } from "@/lib/user-utils";
-import { cn } from "@/lib/utils";
 import type { Employee } from "@/types";
 
 export default function EmployeesPage() {
@@ -231,8 +231,7 @@ export default function EmployeesPage() {
                 filtered.map((emp) => (
                   <TableRow
                     key={emp.id}
-                    className="group cursor-pointer transition-colors hover:bg-primary/5"
-                    onClick={() => setModal({ mode: "view", employee: emp })}
+                    className="group transition-colors hover:bg-primary/5"
                   >
                     <TableCell>
                       <div className="flex items-center gap-3">
@@ -253,24 +252,33 @@ export default function EmployeesPage() {
                       {emp.email}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="font-normal">
+                      <Badge
+                        variant="outline"
+                        className="border-orange-200 bg-orange-50 font-normal text-orange-700 hover:bg-orange-100"
+                      >
                         {emp.designation}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1.5 text-sm",
-                          emp.manager === "Unassigned"
-                            ? "text-muted-foreground italic"
-                            : "text-foreground"
-                        )}
-                      >
-                        {emp.manager !== "Unassigned" && (
+                      {!emp.managerId || emp.manager === "Unassigned" ? (
+                        <Button
+                          variant="outline"
+                          size="xs"
+                          className="border-primary/30 bg-primary/5 text-primary shadow-none hover:border-primary/50 hover:bg-primary/10 hover:text-primary"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setModal({ mode: "edit", employee: emp });
+                          }}
+                        >
+                          <UserPlus className="size-3" />
+                          Add manager
+                        </Button>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 text-sm text-foreground">
                           <UserCircle className="size-3.5 shrink-0 text-muted-foreground" />
-                        )}
-                        {emp.manager}
-                      </span>
+                          {emp.manager}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {formatDate(emp.joinDate)}

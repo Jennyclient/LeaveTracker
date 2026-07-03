@@ -1,5 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { TableCell, TableRow } from "@/components/ui/table";
 
 export function DashboardSkeleton() {
   return (
@@ -44,6 +45,28 @@ export function TableSkeleton({ rows = 5 }: { rows?: number }) {
         <Skeleton key={i} className="h-12 w-full" />
       ))}
     </div>
+  );
+}
+
+export function TableBodySkeleton({
+  rows = 5,
+  columns = 5,
+}: {
+  rows?: number;
+  columns?: number;
+}) {
+  return (
+    <>
+      {Array.from({ length: rows }).map((_, rowIndex) => (
+        <TableRow key={rowIndex}>
+          {Array.from({ length: columns }).map((_, colIndex) => (
+            <TableCell key={colIndex}>
+              <Skeleton className="h-4 w-full" />
+            </TableCell>
+          ))}
+        </TableRow>
+      ))}
+    </>
   );
 }
 

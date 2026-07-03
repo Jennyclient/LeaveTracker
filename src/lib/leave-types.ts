@@ -152,6 +152,16 @@ export async function getLeaveTypes(): Promise<LeaveType[]> {
   return data.leaveTypes.map(mapApiLeaveTypeToLeaveType);
 }
 
+export async function getEmployeeLeaveTypes(): Promise<LeaveType[]> {
+  const { data } = await API.get<GetLeaveTypesResponse>("/employee/getAllLeaveTypes");
+
+  if (!data.success) {
+    throw new Error(data.message ?? "Failed to fetch leave types");
+  }
+
+  return data.leaveTypes.map(mapApiLeaveTypeToLeaveType);
+}
+
 export async function createLeaveType(input: LeaveTypeInput): Promise<LeaveType> {
   const { data } = await API.post<LeaveTypeMutationResponse>(
     "/admin/leave-types",

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { TableEmptyRow } from "@/components/shared/table-empty-row";
+import { TableBodySkeleton } from "@/components/shared/loading-skeleton";
 import {
   Select,
   SelectContent,
@@ -21,18 +22,57 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDate } from "@/lib/format";
-import { useAuthStore } from "@/stores/auth-store";
+import { getEmployeeLeaveRequests } from "@/lib/leave-requests";
+import { getEmployeeLeaveTypes } from "@/lib/leave-types";
+import { toast } from "sonner";
 import type { LeaveRequest, LeaveType } from "@/types";
 
 export default function MyLeavesPage() {
-  const user = useAuthStore((s) => s.user);
-  const leaveRequests: LeaveRequest[] = [];
-  const leaveTypes: LeaveType[] = [];
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
+  const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadData() {
+      try {
+        const [requests, types] = await Promise.all([
+          getEmployeeLeaveRequests(),
+          getEmployeeLeaveTypes(),
+        ]);
+
+        if (cancelled) {
+          return;
+        }
+
+        setLeaveRequests(requests);
+        setLeaveTypes(types.filter((lt) => lt.status === "active"));
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        const message =
+          error instanceof Error ? error.message : "Failed to fetch leave requests";
+        toast.error(message);
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const myLeaves = leaveRequests.filter((r) => {
-    if (r.employeeId !== user?.id) return false;
     if (statusFilter !== "all" && r.status !== statusFilter) return false;
     if (typeFilter !== "all" && r.leaveTypeId !== typeFilter) return false;
     return true;
@@ -55,6 +95,7 @@ export default function MyLeavesPage() {
             <SelectItem value="pending">Pending</SelectItem>
             <SelectItem value="approved">Approved</SelectItem>
             <SelectItem value="rejected">Rejected</SelectItem>
+            <SelectItem value="cancelled">Cancelled</SelectItem>
           </SelectContent>
         </Select>
         <Select value={typeFilter} onValueChange={setTypeFilter}>
@@ -63,8 +104,10 @@ export default function MyLeavesPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Types</SelectItem>
-            {leaveTypes.slice(0, 4).map((lt) => (
-              <SelectItem key={lt.id} value={lt.id}>{lt.leaveName}</SelectItem>
+            {leaveTypes.map((lt) => (
+              <SelectItem key={lt.id} value={lt.id}>
+                {lt.leaveName}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -82,19 +125,26 @@ export default function MyLeavesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {myLeaves.length === 0 ? (
+            {isLoading ? (
+              <TableBodySkeleton rows={5} columns={5} />
+            ) : myLeaves.length === 0 ? (
               <TableEmptyRow colSpan={5} message="No leave requests found" />
             ) : (
               myLeaves.map((leave) => (
-              <TableRow key={leave.id}>
-                <TableCell>
-                  {formatDate(leave.startDate)} — {formatDate(leave.endDate)}
-                </TableCell>
-                <TableCell>{leave.leaveType}</TableCell>
-                <TableCell>{leave.days}{leave.halfDay ? " (Half)" : ""}</TableCell>
-                <TableCell><StatusBadge status={leave.status} /></TableCell>
-                <TableCell>{formatDate(leave.appliedDate)}</TableCell>
-              </TableRow>
+                <TableRow key={leave.id}>
+                  <TableCell>
+                    {formatDate(leave.startDate)} — {formatDate(leave.endDate)}
+                  </TableCell>
+                  <TableCell>{leave.leaveType}</TableCell>
+                  <TableCell>
+                    {leave.days}
+                    {leave.halfDay ? " (Half)" : ""}
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge status={leave.status} />
+                  </TableCell>
+                  <TableCell>{formatDate(leave.appliedDate)}</TableCell>
+                </TableRow>
               ))
             )}
           </TableBody>

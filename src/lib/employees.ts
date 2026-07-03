@@ -71,6 +71,7 @@ export interface ManagerOption {
 
 export interface ApiManagerListItem {
   id: string;
+  _id?: string;
   name: string;
   designation?: string | null;
   email?: string;
@@ -80,13 +81,25 @@ export interface ApiManagerListItem {
 export interface GetManagersListResponse {
   success: boolean;
   count?: number;
-  managers: ApiManagerListItem[];
+  managers?: ApiManagerListItem[];
+  employees?: ApiManagerListItem[];
   message?: string;
 }
 
 export interface EmployeeListFilters {
   managerId?: string;
   managerName?: string;
+}
+
+function mapManagerOptions(data: GetManagersListResponse): ManagerOption[] {
+  const items = data.managers ?? data.employees ?? [];
+
+  return items
+    .map((item) => ({
+      id: item.id ?? item._id ?? "",
+      name: item.name?.trim() ?? "",
+    }))
+    .filter((item) => item.id && item.name);
 }
 
 export function buildEmployeeListFilters(
@@ -158,10 +171,7 @@ export async function getManagersList(): Promise<ManagerOption[]> {
     throw new Error(data.message ?? "Failed to fetch managers");
   }
 
-  return data.managers.map((manager) => ({
-    id: manager.id,
-    name: manager.name,
-  }));
+  return mapManagerOptions(data);
 }
 
 export async function getEmployeeManagerOptions(
@@ -182,10 +192,7 @@ export async function getEmployeeManagerOptions(
       throw new Error(data.message ?? "Failed to fetch managers");
     }
 
-    return data.managers.map((manager) => ({
-      id: manager.id,
-      name: manager.name,
-    }));
+    return mapManagerOptions(data);
   }
 
   const { data } = await API.get<GetManagersListResponse>(
@@ -196,10 +203,7 @@ export async function getEmployeeManagerOptions(
     throw new Error(data.message ?? "Failed to fetch managers");
   }
 
-  return data.managers.map((manager) => ({
-    id: manager.id,
-    name: manager.name,
-  }));
+  return mapManagerOptions(data);
 }
 
 export async function loadEmployeesPageData(
