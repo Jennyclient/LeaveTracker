@@ -31,6 +31,11 @@ export interface LoginResponse {
   message?: string;
 }
 
+interface SignOutResponse {
+  success: boolean;
+  message?: string;
+}
+
 export const roleToApi: Record<UserRole, ApiRole> = {
   admin: "ADMIN",
   manager: "MANAGER",
@@ -88,6 +93,36 @@ export async function loginUser(
     if (axios.isAxiosError(error)) {
       const message =
         error.response?.data?.message || error.message || "Login failed";
+      throw new Error(message);
+    }
+    throw error;
+  }
+}
+
+export async function signOutUser(accessToken: string): Promise<void> {
+  try {
+    const { data } = await axios.post<SignOutResponse>(
+      `${baseUrl}/auth/signout`,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (!data.success) {
+      throw new Error(data.message ?? "Sign out failed");
+    }
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      // Some backend builds don't expose a signout endpoint yet.
+      if (error.response?.status === 404) {
+        return;
+      }
+      const message =
+        error.response?.data?.message || error.message || "Sign out failed";
       throw new Error(message);
     }
     throw error;

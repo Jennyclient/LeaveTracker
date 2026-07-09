@@ -36,7 +36,21 @@ export interface GetLeaveTypesResponse {
   success: boolean;
   count?: number;
   leaveTypes: ApiLeaveType[];
+  leaveBalance?: ApiEmployeeLeaveBalanceItem[];
   message?: string;
+}
+
+export interface ApiEmployeeLeaveBalanceItem {
+  leaveTypeName: string;
+  allocatedLeaves: number;
+  consumedLeaves: number;
+}
+
+export interface EmployeeLeaveTypeWithBalance {
+  leaveType: LeaveType;
+  allocatedLeaves: number;
+  consumedLeaves: number;
+  availableLeaves: number;
 }
 
 export interface LeaveTypeMutationResponse {
@@ -124,21 +138,18 @@ export function mapApiLeaveTypeToLeaveType(api: ApiLeaveType): LeaveType {
 }
 
 function toApiPayload(input: LeaveTypeInput) {
-  const policyName =
-    input.policyName.trim() || `${input.leaveName.trim()} Policy`;
-
   return {
     leaveName: input.leaveName.trim(),
+    policyName: input.policyName.trim(),
     annualQuota: input.annualQuota,
     accrualType: mapAccrualTypeToApi(input.accrualType),
     carryForward: input.carryForward,
     maxCarryForward: input.maxCarryForward,
     encashment: input.encashment,
+    accrualRules: input.accrualRules.trim(),
+    carryForwardRules: input.carryForwardRules.trim(),
+    probationRules: input.probationRules.trim(),
     status: mapStatusToApi(input.status),
-    policyName,
-    accrualRules: input.accrualRules.trim() || undefined,
-    carryForwardRules: input.carryForwardRules.trim() || undefined,
-    probationRules: input.probationRules.trim() || undefined,
   };
 }
 
@@ -160,6 +171,36 @@ export async function getEmployeeLeaveTypes(): Promise<LeaveType[]> {
   }
 
   return data.leaveTypes.map(mapApiLeaveTypeToLeaveType);
+}
+
+export async function getEmployeeLeaveTypesWithBalance(): Promise<
+  EmployeeLeaveTypeWithBalance[]
+> {
+  const { data } = await API.get<GetLeaveTypesResponse>("/employee/getAllLeaveTypes");
+
+  if (!data.success) {
+    throw new Error(data.message ?? "Failed to fetch leave types");
+  }
+
+  const balanceByLeaveTypeName = new Map(
+    (data.leaveBalance ?? []).map((item) => [
+      item.leaveTypeName.trim().toLowerCase(),
+      item,
+    ])
+  );
+
+  return data.leaveTypes.map((apiLeaveType) => {
+    const leaveType = mapApiLeaveTypeToLeaveType(apiLeaveType);
+    const balance = balanceByLeaveTypeName.get(leaveType.leaveName.trim().toLowerCase());
+    const allocatedLeaves = balance?.allocatedLeaves ?? 0;
+    const consumedLeaves = balance?.consumedLeaves ?? 0;
+    return {
+      leaveType,
+      allocatedLeaves,
+      consumedLeaves,
+      availableLeaves: Math.max(allocatedLeaves - consumedLeaves, 0),
+    };
+  });
 }
 
 export async function createLeaveType(input: LeaveTypeInput): Promise<LeaveType> {

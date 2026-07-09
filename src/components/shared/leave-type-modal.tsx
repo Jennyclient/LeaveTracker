@@ -315,8 +315,13 @@ function LeaveTypeForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!form.leaveName.trim() || !form.annualQuota.trim() || !form.accrualType) {
-      toast.error("Please fill in all required leave type fields");
+    if (
+      !form.leaveName.trim() ||
+      !form.policyName.trim() ||
+      !form.annualQuota.trim() ||
+      !form.accrualType
+    ) {
+      toast.error("Please fill in all required leave type and policy fields");
       return;
     }
 
@@ -492,6 +497,7 @@ function LeaveTypeForm({
                 value={form.policyName}
                 onChange={(e) => updateField("policyName", e.target.value)}
                 disabled={isSubmitting}
+                required
               />
             </div>
             <div className="space-y-2">

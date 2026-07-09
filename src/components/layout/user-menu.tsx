@@ -13,6 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { signOutUser } from "@/lib/auth";
 import { canAccessRole, roleLabels } from "@/lib/navigation";
 import { useAuthStore } from "@/stores/auth-store";
 import type { User as UserType, UserRole } from "@/types";
@@ -24,10 +25,19 @@ interface UserMenuProps {
 export function UserMenu({ user }: UserMenuProps) {
   const router = useRouter();
   const logout = useAuthStore((state) => state.logout);
+  const accessToken = useAuthStore((state) => state.accessToken);
 
-  const handleLogout = () => {
-    logout();
-    router.push("/login");
+  const handleLogout = async () => {
+    try {
+      if (accessToken) {
+        await signOutUser(accessToken);
+      }
+    } catch {
+      // Local logout should still proceed even if signout endpoint is unavailable.
+    } finally {
+      logout();
+      router.push("/login");
+    }
   };
 
   const initials = user.name
@@ -49,6 +59,7 @@ export function UserMenu({ user }: UserMenuProps) {
   const settingsHref =
     user.role === "admin" ? "/admin/settings" : "/employee/profile";
   const showProfile = user.role !== "admin";
+  const showSettings = user.role !== "employee";
 
   return (
     <DropdownMenu>
@@ -85,12 +96,14 @@ export function UserMenu({ user }: UserMenuProps) {
             </Link>
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem asChild>
-          <Link href={settingsHref} className="cursor-pointer">
-            <Settings className="mr-2 size-4" />
-            Settings
-          </Link>
-        </DropdownMenuItem>
+        {showSettings && (
+          <DropdownMenuItem asChild>
+            <Link href={settingsHref} className="cursor-pointer">
+              <Settings className="mr-2 size-4" />
+              Settings
+            </Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuLabel className="text-xs text-muted-foreground">
           Switch Portal

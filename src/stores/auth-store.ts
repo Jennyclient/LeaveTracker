@@ -13,6 +13,7 @@ interface AuthState {
   hasHydrated: boolean;
   login: (email: string, password: string, portal: LoginPortal) => Promise<User>;
   logout: () => void;
+  setTokens: (tokens: { accessToken: string; refreshToken?: string | null }) => void;
   setHasHydrated: (value: boolean) => void;
 }
 
@@ -59,6 +60,14 @@ export const useAuthStore = create<AuthState>()(
           refreshToken: null,
           isLoggedIn: false,
         });
+      },
+
+      setTokens: ({ accessToken, refreshToken }) => {
+        set((state) => ({
+          accessToken,
+          refreshToken: refreshToken ?? state.refreshToken,
+          isLoggedIn: true,
+        }));
       },
 
       setHasHydrated: (value) => set({ hasHydrated: value }),

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { ManagerModal } from "@/components/shared/manager-modal";
+import { ActiveBadge } from "@/components/shared/status-badge";
 import { TableSkeleton } from "@/components/shared/loading-skeleton";
 import { TableEmptyRow } from "@/components/shared/table-empty-row";
 import { Button } from "@/components/ui/button";
@@ -68,18 +69,30 @@ export default function ManagersPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Employee ID</TableHead>
                 <TableHead>Manager Name</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Contact</TableHead>
+                <TableHead>Designation</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Team Size</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {managers.length === 0 ? (
-                <TableEmptyRow colSpan={3} message="No managers found" />
+                <TableEmptyRow colSpan={8} message="No managers found" />
               ) : (
                 managers.map((mgr) => (
                   <TableRow key={mgr.id} className="group">
+                    <TableCell className="font-mono text-xs">{mgr.employeeId}</TableCell>
                     <TableCell className="font-medium">{mgr.name}</TableCell>
+                    <TableCell>{mgr.email}</TableCell>
+                    <TableCell>{mgr.contactNo || "—"}</TableCell>
+                    <TableCell>{mgr.designation}</TableCell>
+                    <TableCell>
+                      <ActiveBadge active={mgr.status === "active"} />
+                    </TableCell>
                     <TableCell>{mgr.teamSize}</TableCell>
                     <TableCell className="text-right">
                       <Button

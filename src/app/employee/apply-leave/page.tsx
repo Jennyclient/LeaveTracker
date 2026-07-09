@@ -19,13 +19,21 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { createEmployeeLeaveRequest } from "@/lib/leave-requests";
-import { getEmployeeLeaveTypes } from "@/lib/leave-types";
+import { getEmployeeLeaveTypesWithBalance } from "@/lib/leave-types";
 import { toast } from "sonner";
 import type { LeaveType } from "@/types";
+
+type LeaveBalanceByType = Record<
+  string,
+  { allocatedLeaves: number; consumedLeaves: number; availableLeaves: number }
+>;
 
 export default function ApplyLeavePage() {
   const router = useRouter();
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
+  const [leaveBalancesByType, setLeaveBalancesByType] = useState<LeaveBalanceByType>(
+    {}
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -41,12 +49,25 @@ export default function ApplyLeavePage() {
 
     async function loadLeaveTypes() {
       try {
-        const types = await getEmployeeLeaveTypes();
+        const items = await getEmployeeLeaveTypesWithBalance();
         if (cancelled) {
           return;
         }
 
-        setLeaveTypes(types.filter((lt) => lt.status === "active"));
+        const activeItems = items.filter(({ leaveType }) => leaveType.status === "active");
+        setLeaveTypes(activeItems.map(({ leaveType }) => leaveType));
+        setLeaveBalancesByType(
+          Object.fromEntries(
+            activeItems.map((item) => [
+              item.leaveType.leaveName.trim().toLowerCase(),
+              {
+                allocatedLeaves: item.allocatedLeaves,
+                consumedLeaves: item.consumedLeaves,
+                availableLeaves: item.availableLeaves,
+              },
+            ])
+          )
+        );
       } catch (error) {
         if (cancelled) {
           return;
@@ -263,14 +284,17 @@ export default function ApplyLeavePage() {
                     />
                     {lt.leaveName}
                   </span>
-                  <span className="text-sm text-muted-foreground">—</span>
+                  <span className="text-sm text-muted-foreground">
+                    {leaveBalancesByType[lt.leaveName.trim().toLowerCase()]
+                      ?.availableLeaves ?? 0}
+                  </span>
                 </div>
               ))
             )}
             <div className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
               <p className="font-medium text-foreground">Balance summary</p>
               <p className="mt-1">
-                Leave balance details will appear here once the balance API is available.
+                Available leaves are mapped from `allocatedLeaves - consumedLeaves`.
               </p>
             </div>
           </CardContent>

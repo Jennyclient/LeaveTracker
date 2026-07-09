@@ -8,7 +8,7 @@ interface ApiLeaveRequest {
   employeeId?: string;
   employeeName?: string;
   leaveTypeId?: string;
-  leaveType?: { id?: string; leaveName?: string } | string;
+  leaveType?: { id?: string; _id?: string; leaveName?: string } | string;
   leaveTypeName?: string;
   startDate: string;
   endDate: string;
@@ -44,6 +44,8 @@ export interface AdminLeaveRequestFilters {
   startDate?: string;
   endDate?: string;
 }
+
+export type ManagerLeaveRequestFilters = AdminLeaveRequestFilters;
 
 export type LeaveRequestAction = "APPROVE" | "REJECT";
 
@@ -85,14 +87,18 @@ function mapApiLeaveRequestToLeaveRequest(api: ApiLeaveRequest): LeaveRequest {
       ? api.leaveType
       : api.leaveType?.leaveName || api.leaveTypeName || "—";
 
+  const leaveTypeId =
+    api.leaveTypeId ??
+    (typeof api.leaveType === "object"
+      ? api.leaveType?.id ?? api.leaveType?._id ?? ""
+      : "");
+
   return {
     id: api.id,
     employeeId: api.employeeId ?? "",
     employeeName: api.employeeName ?? "—",
     leaveType: leaveTypeName,
-    leaveTypeId:
-      api.leaveTypeId ??
-      (typeof api.leaveType === "object" ? api.leaveType?.id ?? "" : ""),
+    leaveTypeId,
     startDate: api.startDate,
     endDate: api.endDate,
     days: api.days ?? api.noOfDays ?? calculatedDays,
@@ -106,9 +112,9 @@ function mapApiLeaveRequestToLeaveRequest(api: ApiLeaveRequest): LeaveRequest {
   };
 }
 
-export async function getAdminLeaveRequests(
+function buildLeaveRequestQueryParams(
   filters?: AdminLeaveRequestFilters
-): Promise<LeaveRequest[]> {
+): Record<string, string> | undefined {
   const params: Record<string, string> = {};
 
   if (filters?.employeeName?.trim()) {
@@ -127,15 +133,39 @@ export async function getAdminLeaveRequests(
     params.endDate = filters.endDate;
   }
 
+  return Object.keys(params).length ? params : undefined;
+}
+
+export async function getAdminLeaveRequests(
+  filters?: AdminLeaveRequestFilters
+): Promise<LeaveRequest[]> {
   const { data } = await API.get<GetLeaveRequestsResponse>(
     "/admin/leave-all-requests",
     {
-      params: Object.keys(params).length ? params : undefined,
+      params: buildLeaveRequestQueryParams(filters),
     }
   );
 
   if (!data.success) {
     throw new Error(data.message ?? "Failed to fetch leave requests");
+  }
+
+  const requests = data.leaveRequests ?? data.requests ?? data.data ?? [];
+  return requests.map(mapApiLeaveRequestToLeaveRequest);
+}
+
+export async function getManagerLeaveRequests(
+  filters?: ManagerLeaveRequestFilters
+): Promise<LeaveRequest[]> {
+  const { data } = await API.get<GetLeaveRequestsResponse>(
+    "/employee/manager/leave-requests",
+    {
+      params: buildLeaveRequestQueryParams(filters),
+    }
+  );
+
+  if (!data.success) {
+    throw new Error(data.message ?? "Failed to fetch team leave requests");
   }
 
   const requests = data.leaveRequests ?? data.requests ?? data.data ?? [];
@@ -158,6 +188,30 @@ export async function updateLeaveRequestAction(
 
   const { data } = await API.put<LeaveRequestActionResponse>(
     `/admin/leave-requests/${leaveRequestId}/action`,
+    payload
+  );
+
+  if (!data.success) {
+    throw new Error(data.message ?? "Failed to update leave request status");
+  }
+}
+
+export async function updateManagerLeaveRequestAction(
+  leaveRequestId: string,
+  input: {
+    action: LeaveRequestAction;
+    employeeId: string;
+    leaveType: string;
+  }
+): Promise<void> {
+  const payload = {
+    action: input.action,
+    employeeId: input.employeeId,
+    leaveType: input.leaveType,
+  };
+
+  const { data } = await API.put<LeaveRequestActionResponse>(
+    `/employee/manager/leave-requests/${leaveRequestId}/action`,
     payload
   );
 

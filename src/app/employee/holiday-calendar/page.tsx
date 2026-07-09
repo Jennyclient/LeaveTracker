@@ -6,8 +6,6 @@ import {
   endOfMonth,
   format,
   getDay,
-  isWithinInterval,
-  parseISO,
   startOfMonth,
 } from "date-fns";
 import { toast } from "sonner";
@@ -16,13 +14,9 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getEmployeeHolidays } from "@/lib/holidays";
-import { formatDate } from "@/lib/format";
+import { formatDate, isDateWithinRange, toDateKey } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { ApprovedLeaveCalendarEntry, Holiday } from "@/types";
-
-function toDateInputValue(value: string): string {
-  return value.includes("T") ? value.split("T")[0] : value;
-}
 
 export default function HolidayCalendarPage() {
   const [holidays, setHolidays] = useState<Holiday[]>([]);
@@ -70,7 +64,7 @@ export default function HolidayCalendarPage() {
   const holidaysByDate = useMemo(() => {
     const map = new Map<string, Holiday>();
     for (const holiday of holidays) {
-      map.set(toDateInputValue(holiday.date), holiday);
+      map.set(toDateKey(holiday.date), holiday);
     }
     return map;
   }, [holidays]);
@@ -78,11 +72,9 @@ export default function HolidayCalendarPage() {
   const getHolidayForDay = (day: Date) => holidaysByDate.get(format(day, "yyyy-MM-dd"));
 
   const getLeavesForDay = (day: Date) =>
-    approvedLeaves.filter((leave) => {
-      const start = parseISO(leave.startDate);
-      const end = parseISO(leave.endDate);
-      return isWithinInterval(day, { start, end });
-    });
+    approvedLeaves.filter((leave) =>
+      isDateWithinRange(day, leave.startDate, leave.endDate)
+    );
 
   const sortedHolidays = useMemo(
     () => [...holidays].sort((a, b) => a.date.localeCompare(b.date)),

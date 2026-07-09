@@ -6,7 +6,12 @@ import { ChevronLeft, ChevronRight, Leaf } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { getNavIcon } from "@/lib/icons";
 import {
   isNavGroup,
@@ -82,82 +87,84 @@ export function Sidebar({
     pathname === href || pathname.startsWith(`${href}/`);
 
   return (
-    <aside
-      className={cn(
-        "flex flex-col border-r border-sidebar-border bg-sidebar",
-        floating
-          ? cn(
-              "fixed inset-y-0 left-0 z-30 transition-all duration-300",
-              collapsed ? "w-[68px]" : "w-64"
-            )
-          : "h-full w-full"
-      )}
-    >
-      <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-4">
-        <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-          <Leaf className="size-4" />
+    <TooltipProvider>
+      <aside
+        className={cn(
+          "flex flex-col border-r border-sidebar-border bg-sidebar",
+          floating
+            ? cn(
+                "fixed inset-y-0 left-0 z-30 transition-all duration-300",
+                collapsed ? "w-[68px]" : "w-64"
+              )
+            : "h-full w-full"
+        )}
+      >
+        <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-4">
+          <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <Leaf className="size-4" />
+          </div>
+          {!collapsed && (
+            <div className="flex flex-col">
+              <span className="text-sm font-semibold text-sidebar-foreground">LeaveFlow</span>
+              <span className="text-xs text-sidebar-foreground/60">{roleLabels[role]}</span>
+            </div>
+          )}
         </div>
-        {!collapsed && (
-          <div className="flex flex-col">
-            <span className="text-sm font-semibold text-sidebar-foreground">LeaveFlow</span>
-            <span className="text-xs text-sidebar-foreground/60">{roleLabels[role]}</span>
+
+        <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+          {(navigation as NavEntry[]).map((entry, idx) => {
+            if (isNavGroup(entry)) {
+              return (
+                <div key={entry.title} className="space-y-1">
+                  {!collapsed && (
+                    <p className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50">
+                      {entry.title}
+                    </p>
+                  )}
+                  {collapsed && idx > 0 && <Separator className="my-2" />}
+                  {entry.items.map((item) => (
+                    <NavItemLink
+                      key={item.href}
+                      item={item}
+                      collapsed={collapsed}
+                      isActive={isLinkActive(item.href)}
+                    />
+                  ))}
+                </div>
+              );
+            }
+
+            return (
+              <NavItemLink
+                key={entry.href}
+                item={entry}
+                collapsed={collapsed}
+                isActive={isLinkActive(entry.href)}
+              />
+            );
+          })}
+        </nav>
+
+        {floating && (
+          <div className="border-t border-sidebar-border p-3">
+            <Button
+              variant="ghost"
+              size={collapsed ? "icon" : "default"}
+              className={cn("w-full", !collapsed && "justify-start")}
+              onClick={onToggle}
+            >
+              {collapsed ? (
+                <ChevronRight className="size-4" />
+              ) : (
+                <>
+                  <ChevronLeft className="size-4" />
+                  <span>Collapse</span>
+                </>
+              )}
+            </Button>
           </div>
         )}
-      </div>
-
-      <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-        {(navigation as NavEntry[]).map((entry, idx) => {
-          if (isNavGroup(entry)) {
-            return (
-              <div key={entry.title} className="space-y-1">
-                {!collapsed && (
-                  <p className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50">
-                    {entry.title}
-                  </p>
-                )}
-                {collapsed && idx > 0 && <Separator className="my-2" />}
-                {entry.items.map((item) => (
-                  <NavItemLink
-                    key={item.href}
-                    item={item}
-                    collapsed={collapsed}
-                    isActive={isLinkActive(item.href)}
-                  />
-                ))}
-              </div>
-            );
-          }
-
-          return (
-            <NavItemLink
-              key={entry.href}
-              item={entry}
-              collapsed={collapsed}
-              isActive={isLinkActive(entry.href)}
-            />
-          );
-        })}
-      </nav>
-
-      {floating && (
-        <div className="border-t border-sidebar-border p-3">
-          <Button
-            variant="ghost"
-            size={collapsed ? "icon" : "default"}
-            className={cn("w-full", !collapsed && "justify-start")}
-            onClick={onToggle}
-          >
-            {collapsed ? (
-              <ChevronRight className="size-4" />
-            ) : (
-              <>
-                <ChevronLeft className="size-4" />
-                <span>Collapse</span>
-              </>
-            )}
-          </Button>
-        </div>
-      )}
-    </aside>
+      </aside>
+    </TooltipProvider>
   );
 }

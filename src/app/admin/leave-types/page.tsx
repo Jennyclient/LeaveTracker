@@ -95,10 +95,11 @@ export default function LeaveTypesPage() {
         {isLoading ? (
           <TableSkeleton rows={5} />
         ) : (
-          <Table className="min-w-[720px]">
+          <Table className="min-w-[860px]">
             <TableHeader>
               <TableRow>
                 <TableHead>Leave Name</TableHead>
+                <TableHead>Policy Name</TableHead>
                 <TableHead>Annual Quota</TableHead>
                 <TableHead>Accrual Type</TableHead>
                 <TableHead>Carry Forward</TableHead>
@@ -110,7 +111,7 @@ export default function LeaveTypesPage() {
             </TableHeader>
             <TableBody>
               {list.length === 0 ? (
-                <TableEmptyRow colSpan={9} message="No leaves configured yet" />
+                <TableEmptyRow colSpan={10} message="No leaves configured yet" />
               ) : (
                 list.map((item) => (
                   <TableRow key={item.id} className="group">
@@ -123,6 +124,7 @@ export default function LeaveTypesPage() {
                         <span className="font-medium">{item.leaveName}</span>
                       </div>
                     </TableCell>
+                    <TableCell>{item.policyName || "—"}</TableCell>
                     <TableCell>{item.annualQuota}</TableCell>
                     <TableCell>{formatAccrualTypeLabel(item.accrualType)}</TableCell>
                     <TableCell>{formatBooleanLabel(item.carryForward)}</TableCell>

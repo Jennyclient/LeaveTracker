@@ -12,6 +12,44 @@ const getTokens = () => {
   return { accessToken, refreshToken };
 };
 
+type RefreshTokenResponse = {
+  success: boolean;
+  accessToken?: string;
+  refreshToken?: string;
+  message?: string;
+};
+
+let refreshPromise: Promise<string> | null = null;
+
+async function refreshAccessToken(): Promise<string> {
+  const { refreshToken } = getTokens();
+  if (!refreshToken) {
+    throw new Error("No refresh token available");
+  }
+
+  if (!refreshPromise) {
+    refreshPromise = API.post<RefreshTokenResponse>("/auth/refresh", {
+      refreshToken,
+    })
+      .then(({ data }) => {
+        if (!data.success || !data.accessToken) {
+          throw new Error(data.message ?? "Failed to refresh session");
+        }
+
+        useAuthStore.getState().setTokens({
+          accessToken: data.accessToken,
+          refreshToken: data.refreshToken,
+        });
+        return data.accessToken;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+
+  return refreshPromise;
+}
+
 API.interceptors.request.use(
   (config) => {
     if (config.url?.includes("/auth/login") || config.url?.includes("/auth/signup")) {
@@ -31,7 +69,9 @@ API.interceptors.request.use(
 API.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const originalRequest = error.config;
+    const originalRequest = error.config as
+      | (typeof error.config & { _retry?: boolean })
+      | undefined;
 
     if (
       originalRequest?.url?.includes("/auth/login") ||
@@ -40,11 +80,23 @@ API.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    if (error.response?.status === 401) {
-      useAuthStore.getState().logout();
-
-      if (typeof window !== "undefined") {
-        window.location.href = "/login";
+    if (
+      error.response?.status === 401 &&
+      originalRequest &&
+      !originalRequest._retry &&
+      !originalRequest.url?.includes("/auth/refresh")
+    ) {
+      originalRequest._retry = true;
+      try {
+        const newAccessToken = await refreshAccessToken();
+        originalRequest.headers = originalRequest.headers ?? {};
+        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+        return API(originalRequest);
+      } catch {
+        useAuthStore.getState().logout();
+        if (typeof window !== "undefined") {
+          window.location.href = "/login";
+        }
       }
     }
 
