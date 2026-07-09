@@ -1,3 +1,8 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+
 import {
   CalendarDays,
   ClipboardList,
@@ -11,34 +16,54 @@ import {
 } from "@/components/charts/leave-charts";
 import { PageHeader } from "@/components/layout/page-header";
 import { StatCard } from "@/components/shared/stat-card";
-import { StatusBadge } from "@/components/shared/status-badge";
-import { TableEmptyRow } from "@/components/shared/table-empty-row";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { formatDate } from "@/lib/format";
-import type { Holiday, LeaveRequest } from "@/types";
+  getAdminDashboard,
+  type LeaveUtilizationItem,
+  type MonthlyLeaveTrendItem,
+} from "@/lib/dashboard";
 
 export default function AdminDashboardPage() {
-  const leaveRequests: LeaveRequest[] = [];
-  const holidays: Holiday[] = [];
-  const adminStats = {
+  const [adminStats, setAdminStats] = useState({
     totalEmployees: 0,
     activeEmployees: 0,
     onLeave: 0,
     pendingRequests: 0,
-  };
+  });
+  const [leaveUtilization, setLeaveUtilization] = useState<LeaveUtilizationItem[]>(
+    []
+  );
+  const [monthlyLeaveTrend, setMonthlyLeaveTrend] = useState<MonthlyLeaveTrendItem[]>(
+    []
+  );
 
-  const recentRequests = leaveRequests.slice(0, 5);
-  const upcomingHolidays = holidays
-    .filter((h) => new Date(h.date) >= new Date())
-    .slice(0, 5);
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchDashboard() {
+      try {
+        const data = await getAdminDashboard();
+        if (!cancelled) {
+          setAdminStats(data.stats);
+          setLeaveUtilization(data.leaveUtilization);
+          setMonthlyLeaveTrend(data.monthlyLeaveTrend);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Failed to load admin dashboard";
+          toast.error(message);
+        }
+      }
+    }
+
+    void fetchDashboard();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -82,74 +107,8 @@ export default function AdminDashboardPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <LeaveUtilizationChart />
-        <MonthlyLeaveTrendChart />
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Leave Requests</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Employee</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Days</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {recentRequests.length === 0 ? (
-                  <TableEmptyRow colSpan={4} message="No recent leave requests" />
-                ) : (
-                  recentRequests.map((req) => (
-                  <TableRow key={req.id}>
-                    <TableCell className="font-medium">{req.employeeName}</TableCell>
-                    <TableCell>{req.leaveType}</TableCell>
-                    <TableCell>{req.days}</TableCell>
-                    <TableCell>
-                      <StatusBadge status={req.status} />
-                    </TableCell>
-                  </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Upcoming Holidays</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Holiday</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Type</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {upcomingHolidays.length === 0 ? (
-                  <TableEmptyRow colSpan={3} message="No upcoming holidays" />
-                ) : (
-                  upcomingHolidays.map((holiday) => (
-                  <TableRow key={holiday.id}>
-                    <TableCell className="font-medium">{holiday.name}</TableCell>
-                    <TableCell>{formatDate(holiday.date)}</TableCell>
-                    <TableCell className="capitalize">{holiday.type}</TableCell>
-                  </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <LeaveUtilizationChart data={leaveUtilization} />
+        <MonthlyLeaveTrendChart data={monthlyLeaveTrend} />
       </div>
     </div>
   );

@@ -294,7 +294,7 @@ export default function ApplyLeavePage() {
             <div className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
               <p className="font-medium text-foreground">Balance summary</p>
               <p className="mt-1">
-                Available leaves are mapped from `allocatedLeaves - consumedLeaves`.
+                Available leaves are calculated as total allocated leave minus used leave.
               </p>
             </div>
           </CardContent>

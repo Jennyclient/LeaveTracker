@@ -1,61 +1,63 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   CalendarDays,
   CheckCircle,
   Clock,
   Wallet,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { StatCard } from "@/components/shared/stat-card";
-import { StatusBadge } from "@/components/shared/status-badge";
-import { TableEmptyRow } from "@/components/shared/table-empty-row";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  getEmployeeDashboard,
+  type EmployeeLeaveTypeBalance,
+} from "@/lib/dashboard";
 import { formatDate } from "@/lib/format";
-import { useAuthStore } from "@/stores/auth-store";
-import type { Holiday, LeaveRequest } from "@/types";
-
-const emptyBalance = {
-  paidLeave: 0,
-  casualLeave: 0,
-  sickLeave: 0,
-  compOff: 0,
-  annualQuota: { paidLeave: 0, casualLeave: 0, sickLeave: 0, compOff: 0 },
-};
+import type { Holiday } from "@/types";
 
 export default function EmployeeDashboardPage() {
-  const user = useAuthStore((s) => s.user);
-  const leaveRequests: LeaveRequest[] = [];
-  const holidays: Holiday[] = [];
-  const employeeStats = {
+  const [upcomingHolidays, setUpcomingHolidays] = useState<Holiday[]>([]);
+  const [leaveTypes, setLeaveTypes] = useState<EmployeeLeaveTypeBalance[]>([]);
+  const [employeeStats, setEmployeeStats] = useState({
     availableLeaves: 0,
     pendingRequests: 0,
     approvedRequests: 0,
     upcomingHolidays: 0,
-  };
-  const employeeBalance = emptyBalance;
+  });
 
-  const myRequests = leaveRequests.filter((r) => r.employeeId === user?.id);
-  const upcomingHolidays = holidays
-    .filter((h) => new Date(h.date) >= new Date())
-    .slice(0, 3);
+  useEffect(() => {
+    let cancelled = false;
 
-  const balanceItems = [
-    { label: "Paid Leave", available: employeeBalance.paidLeave, total: employeeBalance.annualQuota.paidLeave },
-    { label: "Casual Leave", available: employeeBalance.casualLeave, total: employeeBalance.annualQuota.casualLeave },
-    { label: "Sick Leave", available: employeeBalance.sickLeave, total: employeeBalance.annualQuota.sickLeave },
-    { label: "Comp Off", available: employeeBalance.compOff, total: 10 },
-  ];
+    async function fetchDashboard() {
+      try {
+        const data = await getEmployeeDashboard();
+        if (!cancelled) {
+          setEmployeeStats(data.stats);
+          setLeaveTypes(data.leaveTypes);
+          setUpcomingHolidays(data.upcomingHolidays);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Failed to load employee dashboard";
+          toast.error(message);
+        }
+      }
+    }
+
+    void fetchDashboard();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -71,23 +73,35 @@ export default function EmployeeDashboardPage() {
         <StatCard title="Upcoming Holidays" value={employeeStats.upcomingHolidays} icon={CalendarDays} href="/employee/holiday-calendar" />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-1">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
           <CardHeader>
             <CardTitle>My Leave Balance</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {balanceItems.map((item) => (
-              <div key={item.label} className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="font-medium">{item.label}</span>
-                  <span className="text-muted-foreground">
-                    {item.available} / {item.total}
-                  </span>
+            {leaveTypes.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                No leave balance data
+              </p>
+            ) : (
+              leaveTypes.map((item) => (
+                <div key={item.leaveName} className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="font-medium">{item.leaveName}</span>
+                    <span className="text-muted-foreground">
+                      {item.availableLeaves} / {item.allocatedLeaves}
+                    </span>
+                  </div>
+                  <Progress
+                    value={
+                      item.allocatedLeaves > 0
+                        ? (item.availableLeaves / item.allocatedLeaves) * 100
+                        : 0
+                    }
+                  />
                 </div>
-                <Progress value={item.total > 0 ? (item.available / item.total) * 100 : 0} />
-              </div>
-            ))}
+              ))
+            )}
           </CardContent>
         </Card>
 
@@ -113,36 +127,6 @@ export default function EmployeeDashboardPage() {
                 ))
               )}
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Requests</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Days</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {myRequests.length === 0 ? (
-                  <TableEmptyRow colSpan={3} message="No recent requests" />
-                ) : (
-                  myRequests.map((req) => (
-                  <TableRow key={req.id}>
-                    <TableCell>{req.leaveType}</TableCell>
-                    <TableCell>{req.days}</TableCell>
-                    <TableCell><StatusBadge status={req.status} /></TableCell>
-                  </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
           </CardContent>
         </Card>
       </div>
