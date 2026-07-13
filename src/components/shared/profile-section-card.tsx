@@ -29,7 +29,7 @@ export function ProfileSectionCard({
           <h3 className="text-sm font-semibold tracking-tight text-foreground">
             {title}
           </h3>
-          {status && status !== "not_submitted" && (
+          {status && status !== "not_submitted" && status !== "pending" && (
             <ProfileApprovalBadge status={status} />
           )}
         </div>

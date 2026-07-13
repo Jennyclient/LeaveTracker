@@ -158,7 +158,7 @@ export default function LoginPage() {
             <CardDescription>Sign in to your LeaveFlow account</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleLogin} className="space-y-5" noValidate autoComplete="off">
+            <form onSubmit={handleLogin} className="space-y-4" noValidate autoComplete="off">
               <FormField label="Portal" htmlFor="portal" required error={errors.portal}>
                 <Select
                   value={portal}

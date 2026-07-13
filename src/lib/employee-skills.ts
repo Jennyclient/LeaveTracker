@@ -27,14 +27,21 @@ export function normalizeProficiency(skill: ApiEmployeeSkill): number {
 }
 
 export function mapApiSkills(
-  skills?: ApiEmployeeSkill[]
+  skills?: (string | ApiEmployeeSkill)[]
 ): EmployeeSkill[] | undefined {
   if (!skills?.length) return undefined;
 
-  return skills.map((skill) => ({
-    name: skill.name,
-    proficiency: normalizeProficiency(skill),
-  }));
+  return skills.map((skill) => {
+    if (typeof skill === "string") {
+      const name = skill.trim();
+      return { name, proficiency: 3 };
+    }
+
+    return {
+      name: skill.name,
+      proficiency: normalizeProficiency(skill),
+    };
+  });
 }
 
 export function mapSkillsToApi(skills: EmployeeSkill[]) {
@@ -45,13 +52,28 @@ export function mapSkillsToApi(skills: EmployeeSkill[]) {
   }));
 }
 
+export function mapSkillsToApiStrings(skills: EmployeeSkill[]): string[] {
+  return skills.map((skill) => skill.name.trim()).filter(Boolean);
+}
+
 export function mapApiCertifications(
-  certifications?: string | ApiEmployeeCertification[] | null
+  certifications?: string | string[] | ApiEmployeeCertification[] | null
 ): EmployeeCertification[] | undefined {
   if (!certifications) return undefined;
 
   if (Array.isArray(certifications)) {
-    const mapped = certifications
+    if (!certifications.length) return undefined;
+
+    if (typeof certifications[0] === "string") {
+      const mapped = certifications
+        .map((name) => (typeof name === "string" ? name.trim() : ""))
+        .filter(Boolean)
+        .map((name) => ({ name, issuedBy: "", issueDate: "" }));
+
+      return mapped.length ? mapped : undefined;
+    }
+
+    const mapped = (certifications as ApiEmployeeCertification[])
       .map((cert) => ({
         name: cert.name?.trim() ?? "",
         issuedBy: cert.issuedBy?.trim() ?? "",
@@ -84,6 +106,18 @@ export function mapCertificationsToApi(
       credentialId: cert.credentialId?.trim() || undefined,
       credentialUrl: cert.credentialUrl?.trim() || undefined,
     }));
+
+  return mapped.length ? mapped : undefined;
+}
+
+export function mapCertificationsToApiStrings(
+  certifications?: EmployeeCertification[]
+): string[] | undefined {
+  if (!certifications?.length) return undefined;
+
+  const mapped = certifications
+    .map((cert) => cert.name.trim())
+    .filter(Boolean);
 
   return mapped.length ? mapped : undefined;
 }

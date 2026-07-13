@@ -19,6 +19,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export interface LeaveUtilizationItem {
+  id?: string;
   type: string;
   used: number;
   total: number;
@@ -57,8 +58,8 @@ function ChartTooltip({
     <div className="rounded-lg border bg-popover px-3 py-2 shadow-md">
       <p className="mb-1.5 text-xs font-medium text-muted-foreground">{label}</p>
       <div className="space-y-1">
-        {payload.map((entry) => (
-          <div key={entry.name} className="flex items-center gap-2 text-sm">
+        {payload.map((entry, index) => (
+          <div key={`${entry.name ?? "value"}-${index}`} className="flex items-center gap-2 text-sm">
             <span
               className="size-2 rounded-full"
               style={{ backgroundColor: entry.color }}
@@ -127,8 +128,8 @@ export function LeaveUtilizationChart({
           </p>
         ) : (
           <div className="grid gap-6 lg:grid-cols-[240px_1fr] lg:items-center">
-            <div className="mx-auto h-[220px] w-full max-w-[240px]">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="mx-auto h-[220px] w-full min-w-0 max-w-[240px]">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
                 <PieChart>
                   <Pie
                     data={chartData}
@@ -141,9 +142,9 @@ export function LeaveUtilizationChart({
                     paddingAngle={2}
                     strokeWidth={0}
                   >
-                    {chartData.map((_, index) => (
+                    {chartData.map((item, index) => (
                       <Cell
-                        key={`slice-${index}`}
+                        key={item.id ?? `${item.type}-${index}`}
                         fill={UTILIZATION_COLORS[index % UTILIZATION_COLORS.length]}
                       />
                     ))}
@@ -173,7 +174,7 @@ export function LeaveUtilizationChart({
             <div className="space-y-3">
               {chartData.map((item, index) => (
                 <div
-                  key={item.type}
+                  key={item.id ?? `${item.type}-${index}`}
                   className="rounded-lg border bg-muted/20 px-3 py-2"
                 >
                   <div className="flex items-center justify-between gap-3">
@@ -264,7 +265,8 @@ export function MonthlyLeaveTrendChart({
           </div>
         ) : (
           <div className="space-y-4">
-            <ResponsiveContainer width="100%" height={300}>
+            <div className="h-[300px] w-full min-w-0">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={300}>
               <AreaChart
                 data={chartData}
                 margin={{ top: 8, right: 8, left: -16, bottom: 0 }}
@@ -303,7 +305,7 @@ export function MonthlyLeaveTrendChart({
                       active={active}
                       label={String(label)}
                       payload={payload?.map((p) => ({
-                        name: p.name,
+                        name: typeof p.name === "string" ? p.name : String(p.name ?? ""),
                         value: p.value as number,
                         color: p.color,
                       }))}
@@ -332,6 +334,7 @@ export function MonthlyLeaveTrendChart({
                 />
               </AreaChart>
             </ResponsiveContainer>
+            </div>
 
             {peakMonth && peakMonth.leaves > 0 && (
               <p className="text-center text-xs text-muted-foreground">
@@ -364,7 +367,8 @@ export function MonthlyUsageBarChart({
         <CardTitle>Monthly Leave Usage</CardTitle>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={280}>
+        <div className="h-[280px] w-full min-w-0">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={280}>
           <BarChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-border/60" />
             <XAxis dataKey="monthLabel" />
@@ -378,6 +382,7 @@ export function MonthlyUsageBarChart({
             />
           </BarChart>
         </ResponsiveContainer>
+        </div>
       </CardContent>
     </Card>
   );

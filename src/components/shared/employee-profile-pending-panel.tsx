@@ -3,10 +3,44 @@
 import type { ComponentType } from "react";
 import { AlertCircle, Landmark, Sparkles } from "lucide-react";
 
-import { ProfileApprovalBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { EmployeeProfile } from "@/types";
+
+function hasBankDetails(profile: EmployeeProfile): boolean {
+  return Boolean(
+    profile.bank?.accountHolderName?.trim() ||
+      profile.bank?.bankName?.trim() ||
+      profile.bank?.accountNumber?.trim()
+  );
+}
+
+function hasSkillsDetails(profile: EmployeeProfile): boolean {
+  return Boolean(
+    profile.skills?.length ||
+      profile.certifications?.length ||
+      profile.primarySkill?.trim() ||
+      profile.resumeUrl?.trim()
+  );
+}
+
+function getPendingActionLabel(
+  itemId: "bank" | "skills",
+  profile: EmployeeProfile,
+  status: EmployeeProfile["bankStatus"]
+): string {
+  const hasData = itemId === "bank" ? hasBankDetails(profile) : hasSkillsDetails(profile);
+
+  if (!hasData) {
+    return "+ Add details";
+  }
+
+  if (status === "rejected") {
+    return "Edit & Resubmit";
+  }
+
+  return "Edit";
+}
 
 interface PendingItem {
   id: "bank" | "skills";
@@ -53,9 +87,8 @@ export function EmployeeProfilePendingPanel({
   const actionable = items.filter(
     (item) => item.status === "not_submitted" || item.status === "rejected"
   );
-  const pendingReview = items.filter((item) => item.status === "pending");
 
-  if (actionable.length === 0 && pendingReview.length === 0) {
+  if (actionable.length === 0) {
     return null;
   }
 
@@ -87,34 +120,12 @@ export function EmployeeProfilePendingPanel({
                 </div>
               </div>
               <Button size="sm" variant="outline" onClick={item.onAction}>
-                + Add details
+                {getPendingActionLabel(item.id, profile, item.status)}
               </Button>
             </div>
           );
         })}
 
-        {pendingReview.map((item) => {
-          const Icon = item.icon;
-          return (
-            <div
-              key={item.id}
-              className="flex items-center justify-between gap-3 rounded-lg border bg-background/80 px-4 py-3"
-            >
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="flex size-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                  <Icon className="size-4" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium">{item.title}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Submitted and awaiting admin verification
-                  </p>
-                </div>
-              </div>
-              <ProfileApprovalBadge status="pending" />
-            </div>
-          );
-        })}
       </CardContent>
     </Card>
   );

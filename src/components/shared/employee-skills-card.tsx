@@ -6,10 +6,6 @@ import { toast } from "sonner";
 
 import { ProfileDetailField } from "@/components/shared/profile-detail-field";
 import { ProfileSectionCard } from "@/components/shared/profile-section-card";
-import {
-  SkillStarRating,
-  SkillStarRatingDisplay,
-} from "@/components/shared/skill-star-rating";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,7 +29,7 @@ import {
 } from "@/components/ui/select";
 import { emptyCertification } from "@/lib/employee-skills";
 import { formatDate } from "@/lib/format";
-import { updateEmployeeSkills } from "@/lib/profile";
+import { createEmployeeSkills, updateEmployeeSkills } from "@/lib/profile";
 import type {
   EmployeeCertification,
   EmployeeProfile,
@@ -110,10 +106,13 @@ export function EmployeeSkillsCard({
   onDialogOpenChange,
 }: EmployeeSkillsCardProps) {
   const status = profile.skillsStatus ?? "not_submitted";
-  const canEdit =
-    status === "not_submitted" || status === "rejected" || status === "approved";
+  const isPending = status === "pending";
   const hasData =
-    Boolean(profile.skills?.length) || Boolean(profile.certifications?.length);
+    Boolean(profile.skills?.length) ||
+    Boolean(profile.certifications?.length) ||
+    Boolean(profile.primarySkill?.trim()) ||
+    Boolean(profile.resumeUrl);
+  const canEdit = !isPending || hasData;
 
   const [internalOpen, setInternalOpen] = useState(false);
   const isDialogOpen = dialogOpen ?? internalOpen;
@@ -125,6 +124,7 @@ export function EmployeeSkillsCard({
   const [certifications, setCertifications] = useState<EmployeeCertification[]>(
     profile.certifications?.length ? profile.certifications : [emptyCertification()]
   );
+  const [resumeUrl, setResumeUrl] = useState(profile.resumeUrl ?? "");
   const [newSkillName, setNewSkillName] = useState("");
   const [showSkillInput, setShowSkillInput] = useState(false);
 
@@ -134,6 +134,7 @@ export function EmployeeSkillsCard({
     setCertifications(
       profile.certifications?.length ? profile.certifications : [emptyCertification()]
     );
+    setResumeUrl(profile.resumeUrl ?? "");
     setNewSkillName("");
     setShowSkillInput(false);
   };
@@ -168,14 +169,6 @@ export function EmployeeSkillsCard({
     if (primarySkill === name) {
       setPrimarySkill(nextSkills[0]?.name ?? "");
     }
-  };
-
-  const updateSkillProficiency = (name: string, proficiency: number) => {
-    setSkills(
-      skills.map((skill) =>
-        skill.name === name ? { ...skill, proficiency } : skill
-      )
-    );
   };
 
   const updateCertification = (
@@ -213,32 +206,33 @@ export function EmployeeSkillsCard({
       return;
     }
 
-    const filledCertifications = certifications.filter(
-      (cert) =>
-        cert.name.trim() ||
-        cert.issuedBy.trim() ||
-        cert.issueDate ||
-        cert.credentialId?.trim() ||
-        cert.credentialUrl?.trim()
-    );
+    const filledCertifications = certifications.filter((cert) => cert.name.trim());
 
     for (const cert of filledCertifications) {
-      if (!cert.name.trim() || !cert.issuedBy.trim() || !cert.issueDate) {
-        toast.error("Each certification needs a name, issuer, and issue date");
+      if (!cert.name.trim()) {
+        toast.error("Each certification needs a name");
         return;
       }
     }
 
     setIsSaving(true);
     try {
-      const updated = await updateEmployeeSkills({
+      const payload = {
         skills,
         primarySkill,
         certifications: filledCertifications.length ? filledCertifications : undefined,
-      });
+        resumeUrl: resumeUrl.trim() || undefined,
+      };
+
+      const saveSkills = hasData ? updateEmployeeSkills : createEmployeeSkills;
+      const updated = await saveSkills(payload);
       onUpdated(updated);
       setDialogOpen(false);
-      toast.success("Skills submitted for verification");
+      toast.success(
+        hasData
+          ? "Skills updated and sent for verification"
+          : "Skills submitted for verification"
+      );
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to submit skills";
@@ -248,12 +242,11 @@ export function EmployeeSkillsCard({
     }
   };
 
-  const actionLabel =
-    status === "not_submitted"
-      ? "+ Add details"
-      : status === "approved"
-        ? "Edit"
-        : "Edit & Resubmit";
+  const actionLabel = !hasData
+    ? "+ Add details"
+    : status === "rejected"
+      ? "Edit & Resubmit"
+      : "Edit";
 
   return (
     <>
@@ -261,7 +254,7 @@ export function EmployeeSkillsCard({
         title="Skills & Certifications"
         status={status}
         action={
-          canEdit && status !== "pending" ? (
+          canEdit ? (
             <Button
               variant="link"
               size="sm"
@@ -278,7 +271,7 @@ export function EmployeeSkillsCard({
             <p className="text-sm text-muted-foreground">
               Add your professional skills and certifications for admin verification.
             </p>
-            {canEdit && status !== "pending" && (
+            {canEdit && (
               <Button size="sm" variant="outline" onClick={() => setDialogOpen(true)}>
                 + Add details
               </Button>
@@ -299,26 +292,23 @@ export function EmployeeSkillsCard({
               </div>
             </div>
 
-            {profile.skills && profile.skills.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                  Skill Proficiency
-                </p>
-                <div className="space-y-2">
-                  {profile.skills.map((skill) => (
-                    <div
-                      key={skill.name}
-                      className="flex items-center justify-between gap-3 rounded-lg border bg-muted/10 px-3 py-2"
-                    >
-                      <span className="text-sm font-medium">{skill.name}</span>
-                      <SkillStarRatingDisplay value={skill.proficiency} />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             <ProfileDetailField label="Primary Skill" value={profile.primarySkill} />
+
+            {profile.resumeUrl && (
+              <ProfileDetailField
+                label="Resume"
+                value={
+                  <a
+                    href={profile.resumeUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-primary underline-offset-4 hover:underline"
+                  >
+                    View resume
+                  </a>
+                }
+              />
+            )}
 
             {profile.certifications && profile.certifications.length > 0 && (
               <div className="space-y-3">
@@ -331,7 +321,9 @@ export function EmployeeSkillsCard({
                     className="rounded-lg border bg-muted/10 p-3 text-sm"
                   >
                     <p className="font-medium">{cert.name}</p>
-                    <p className="text-muted-foreground">{cert.issuedBy}</p>
+                    {cert.issuedBy ? (
+                      <p className="text-muted-foreground">{cert.issuedBy}</p>
+                    ) : null}
                     {cert.issueDate && (
                       <p className="text-xs text-muted-foreground">
                         Issued {formatDate(cert.issueDate)}
@@ -344,9 +336,9 @@ export function EmployeeSkillsCard({
           </div>
         )}
 
-        {status === "pending" && (
-          <p className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
-            Submitted for admin verification. You will be notified once reviewed.
+        {status === "rejected" && (
+          <p className="mt-4 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-700 dark:text-red-400">
+            Your skills were rejected. Please update and resubmit.
           </p>
         )}
       </ProfileSectionCard>
@@ -453,27 +445,6 @@ export function EmployeeSkillsCard({
               </Select>
             </div>
 
-            {skills.length > 0 && (
-              <div className="space-y-3">
-                <SectionDivider title="Skill Proficiency" />
-                <div className="divide-y rounded-lg border bg-muted/10">
-                  {skills.map((skill) => (
-                    <div
-                      key={skill.name}
-                      className="flex items-center justify-between gap-4 px-4 py-3"
-                    >
-                      <span className="text-sm font-medium">{skill.name}</span>
-                      <SkillStarRating
-                        value={skill.proficiency}
-                        onChange={(value) => updateSkillProficiency(skill.name, value)}
-                        disabled={isSaving}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             <div className="space-y-4">
               <SectionDivider title="Certifications" />
               {certifications.map((cert, index) => (
@@ -498,67 +469,17 @@ export function EmployeeSkillsCard({
                       </Button>
                     )}
                   </div>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-3.5 sm:col-span-2">
-                      <Label className="block leading-snug">Certification Name</Label>
-                      <Input
-                        placeholder="e.g. AWS Solutions Architect"
-                        value={cert.name}
-                        onChange={(e) =>
-                          updateCertification(index, "name", e.target.value)
-                        }
-                        disabled={isSaving}
-                        className="bg-background"
-                      />
-                    </div>
-                    <div className="space-y-3.5">
-                      <Label className="block leading-snug">Issued By</Label>
-                      <Input
-                        placeholder="e.g. Amazon Web Services"
-                        value={cert.issuedBy}
-                        onChange={(e) =>
-                          updateCertification(index, "issuedBy", e.target.value)
-                        }
-                        disabled={isSaving}
-                        className="bg-background"
-                      />
-                    </div>
-                    <div className="space-y-3.5">
-                      <Label className="block leading-snug">Issue Date</Label>
-                      <Input
-                        type="date"
-                        value={cert.issueDate}
-                        onChange={(e) =>
-                          updateCertification(index, "issueDate", e.target.value)
-                        }
-                        disabled={isSaving}
-                        className="bg-background"
-                      />
-                    </div>
-                    <div className="space-y-3.5">
-                      <Label className="block leading-snug">Credential ID (optional)</Label>
-                      <Input
-                        value={cert.credentialId ?? ""}
-                        onChange={(e) =>
-                          updateCertification(index, "credentialId", e.target.value)
-                        }
-                        disabled={isSaving}
-                        className="bg-background"
-                      />
-                    </div>
-                    <div className="space-y-3.5 sm:col-span-2">
-                      <Label className="block leading-snug">Credential URL (optional)</Label>
-                      <Input
-                        type="url"
-                        placeholder="https://"
-                        value={cert.credentialUrl ?? ""}
-                        onChange={(e) =>
-                          updateCertification(index, "credentialUrl", e.target.value)
-                        }
-                        disabled={isSaving}
-                        className="bg-background"
-                      />
-                    </div>
+                  <div className="space-y-3.5">
+                    <Label className="block leading-snug">Certification Name</Label>
+                    <Input
+                      placeholder="e.g. AWS Cloud Practitioner"
+                      value={cert.name}
+                      onChange={(e) =>
+                        updateCertification(index, "name", e.target.value)
+                      }
+                      disabled={isSaving}
+                      className="bg-background"
+                    />
                   </div>
                 </div>
               ))}
@@ -572,6 +493,20 @@ export function EmployeeSkillsCard({
                 <Plus className="size-4" />
                 Add Another
               </Button>
+            </div>
+
+            <div className="space-y-3.5">
+              <Label className="block text-foreground leading-snug">
+                Resume URL
+              </Label>
+              <Input
+                type="url"
+                placeholder="https://example.com/resume/your-name.pdf"
+                value={resumeUrl}
+                onChange={(e) => setResumeUrl(e.target.value)}
+                disabled={isSaving}
+                className="bg-background"
+              />
             </div>
 
             <VerificationStatusPanel status={status} />

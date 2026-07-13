@@ -70,22 +70,16 @@ interface FormFieldProps {
 function FieldErrorMessage({
   id,
   message,
-  visible,
 }: {
   id?: string;
   message: string;
-  visible: boolean;
 }) {
   return (
     <p
       id={id}
-      className={cn(
-        "min-h-[1.125rem] text-xs leading-relaxed text-destructive",
-        !visible && "invisible"
-      )}
-      role={visible ? "alert" : undefined}
-      aria-live={visible ? "polite" : undefined}
-      aria-hidden={!visible}
+      className="mt-1.5 text-xs leading-relaxed text-destructive"
+      role="alert"
+      aria-live="polite"
     >
       {message}
     </p>
@@ -107,13 +101,11 @@ function FieldControl({
   const errorId = htmlFor ? `${htmlFor}-error` : undefined;
 
   return (
-    <div className={cn("min-w-0 space-y-1.5", controlClassName)}>
+    <div className={cn("min-w-0", controlClassName)}>
       {enhanceControlWithError(children, hasError, errorId)}
-      <FieldErrorMessage
-        id={errorId}
-        message={error ?? "\u00a0"}
-        visible={hasError}
-      />
+      {hasError && (
+        <FieldErrorMessage id={errorId} message={error!} />
+      )}
     </div>
   );
 }
@@ -162,7 +154,7 @@ export function FormField({
   }
 
   return (
-    <div className={cn("space-y-2.5", className)}>
+    <div className={cn("space-y-2", className)}>
       <div className="space-y-1">
         {labelContent}
         {description && (
@@ -213,7 +205,7 @@ export function FormFieldRow({
         {description && (
           <p className="text-xs leading-relaxed text-muted-foreground">{description}</p>
         )}
-        <FieldErrorMessage message={error ?? "\u00a0"} visible={hasError} />
+        {hasError && <FieldErrorMessage message={error!} />}
       </div>
       <div className="shrink-0">{children}</div>
     </div>

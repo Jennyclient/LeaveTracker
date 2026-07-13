@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useFormErrors } from "@/hooks/use-form-errors";
-import { updateEmployeeBank } from "@/lib/profile";
+import { createEmployeeBank, updateEmployeeBank } from "@/lib/profile";
 import {
   buildFieldErrors,
   hasFieldErrors,
@@ -58,9 +58,13 @@ export function EmployeeBankCard({
   onDialogOpenChange,
 }: EmployeeBankCardProps) {
   const status = profile.bankStatus ?? "not_submitted";
-  const canEdit =
-    status === "not_submitted" || status === "rejected" || status === "approved";
-  const hasData = Boolean(profile.bank?.accountHolderName);
+  const isPending = status === "pending";
+  const hasData = Boolean(
+    profile.bank?.accountHolderName?.trim() ||
+      profile.bank?.bankName?.trim() ||
+      profile.bank?.accountNumber?.trim()
+  );
+  const canEdit = !isPending || hasData;
 
   const [internalOpen, setInternalOpen] = useState(false);
   const isDialogOpen = dialogOpen ?? internalOpen;
@@ -123,17 +127,24 @@ export function EmployeeBankCard({
 
     setIsSaving(true);
     try {
-      const updated = await updateEmployeeBank({
+      const payload = {
         accountHolderName: accountHolderName.trim(),
         bankName: bankName.trim(),
         accountNumber,
         ifscCode: ifscCode.trim().toUpperCase(),
         branch: branch.trim(),
         upiId: upiId.trim() || undefined,
-      });
+      };
+
+      const saveBankDetails = hasData ? updateEmployeeBank : createEmployeeBank;
+      const updated = await saveBankDetails(payload);
       onUpdated(updated);
       setDialogOpen(false);
-      toast.success("Bank details submitted for verification");
+      toast.success(
+        hasData
+          ? "Bank details updated and sent for verification"
+          : "Bank details submitted for verification"
+      );
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to submit bank details";
@@ -143,12 +154,11 @@ export function EmployeeBankCard({
     }
   };
 
-  const actionLabel =
-    status === "not_submitted"
-      ? "+ Add details"
-      : status === "approved"
-        ? "Edit"
-        : "Edit & Resubmit";
+  const actionLabel = !hasData
+    ? "+ Add details"
+    : status === "rejected"
+      ? "Edit & Resubmit"
+      : "Edit";
 
   return (
     <>
@@ -156,7 +166,7 @@ export function EmployeeBankCard({
         title="Bank Details"
         status={status}
         action={
-          canEdit && status !== "pending" ? (
+          canEdit ? (
             <Button
               variant="link"
               size="sm"
@@ -173,7 +183,7 @@ export function EmployeeBankCard({
             <p className="text-sm text-muted-foreground">
               Add your bank account information for payroll processing.
             </p>
-            {canEdit && status !== "pending" && (
+            {canEdit && (
               <Button size="sm" variant="outline" onClick={() => setDialogOpen(true)}>
                 + Add details
               </Button>
@@ -196,11 +206,6 @@ export function EmployeeBankCard({
           </div>
         )}
 
-        {status === "pending" && (
-          <p className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
-            Submitted for admin verification. You will be notified once reviewed.
-          </p>
-        )}
         {status === "rejected" && (
           <p className="mt-4 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-700 dark:text-red-400">
             Your bank details were rejected. Please update and resubmit.

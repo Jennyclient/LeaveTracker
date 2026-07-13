@@ -15,7 +15,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDate } from "@/lib/format";
 import { roleLabels } from "@/lib/navigation";
-import { getEmployeeProfile } from "@/lib/profile";
+import {
+  getEmployeeProfile,
+  loadEmployeeProfileVerificationDetails,
+} from "@/lib/profile";
 import type { EmployeeProfile } from "@/types";
 
 function ProfileSkeleton() {
@@ -31,9 +34,23 @@ function ProfileSkeleton() {
   );
 }
 
+function ProfileVerificationSkeleton() {
+  return (
+    <div className="space-y-6">
+      <Skeleton className="h-28 w-full rounded-xl" />
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Skeleton className="h-64 rounded-xl" />
+        <Skeleton className="h-64 rounded-xl" />
+      </div>
+    </div>
+  );
+}
+
 export default function EmployeeProfilePage() {
   const [profile, setProfile] = useState<EmployeeProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("about");
+  const [isProfileTabLoading, setIsProfileTabLoading] = useState(false);
   const [bankDialogOpen, setBankDialogOpen] = useState(false);
   const [skillsDialogOpen, setSkillsDialogOpen] = useState(false);
 
@@ -65,6 +82,42 @@ export default function EmployeeProfilePage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (activeTab !== "profile" || !profile) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadVerificationDetails() {
+      setIsProfileTabLoading(true);
+      try {
+        const updated = await loadEmployeeProfileVerificationDetails(profile);
+        if (!cancelled) {
+          setProfile(updated);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Failed to load bank and skills details";
+          toast.error(message);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsProfileTabLoading(false);
+        }
+      }
+    }
+
+    void loadVerificationDetails();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, profile?.id]);
 
   if (isLoading) {
     return (
@@ -103,7 +156,7 @@ export default function EmployeeProfilePage() {
 
       <EmployeeProfileHeader profile={profile} />
 
-      <Tabs defaultValue="about" className="gap-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-6">
         <TabsList
           variant="line"
           className="h-auto w-full justify-start gap-6 rounded-none border-b bg-transparent p-0"
@@ -179,26 +232,32 @@ export default function EmployeeProfilePage() {
         </TabsContent>
 
         <TabsContent value="profile" className="mt-0 space-y-6">
-          <EmployeeProfilePendingPanel
-            profile={profile}
-            onAddBank={() => setBankDialogOpen(true)}
-            onAddSkills={() => setSkillsDialogOpen(true)}
-          />
+          {isProfileTabLoading ? (
+            <ProfileVerificationSkeleton />
+          ) : (
+            <>
+              <EmployeeProfilePendingPanel
+                profile={profile}
+                onAddBank={() => setBankDialogOpen(true)}
+                onAddSkills={() => setSkillsDialogOpen(true)}
+              />
 
-          <div className="grid gap-6 lg:grid-cols-2">
-            <EmployeeBankCard
-              profile={profile}
-              onUpdated={setProfile}
-              dialogOpen={bankDialogOpen}
-              onDialogOpenChange={setBankDialogOpen}
-            />
-            <EmployeeSkillsCard
-              profile={profile}
-              onUpdated={setProfile}
-              dialogOpen={skillsDialogOpen}
-              onDialogOpenChange={setSkillsDialogOpen}
-            />
-          </div>
+              <div className="grid gap-6 lg:grid-cols-2">
+                <EmployeeBankCard
+                  profile={profile}
+                  onUpdated={setProfile}
+                  dialogOpen={bankDialogOpen}
+                  onDialogOpenChange={setBankDialogOpen}
+                />
+                <EmployeeSkillsCard
+                  profile={profile}
+                  onUpdated={setProfile}
+                  dialogOpen={skillsDialogOpen}
+                  onDialogOpenChange={setSkillsDialogOpen}
+                />
+              </div>
+            </>
+          )}
         </TabsContent>
 
         <TabsContent value="finances" className="mt-0">

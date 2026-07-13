@@ -96,8 +96,10 @@ function mapHolidayCalendarResponse(data: GetHolidaysResponse): HolidayCalendarD
   return { holidays, approvedLeaves };
 }
 
-export async function getHolidays(): Promise<Holiday[]> {
-  const { data } = await API.get<GetHolidaysResponse>("/admin/holidays");
+export async function getHolidays(year?: number): Promise<Holiday[]> {
+  const { data } = await API.get<GetHolidaysResponse>("/admin/holidays", {
+    params: year ? { year } : undefined,
+  });
 
   if (!data.success) {
     throw new Error(data.message ?? "Failed to fetch holidays");
@@ -172,30 +174,188 @@ export interface HolidayImportFailure {
 export interface HolidayImportResult {
   created: number;
   failed: HolidayImportFailure[];
+  message?: string;
 }
 
-export async function importHolidays(
-  inputs: HolidayInput[],
-  rowNumbers: number[]
-): Promise<HolidayImportResult> {
-  const result: HolidayImportResult = { created: 0, failed: [] };
+interface HolidayImportApiFailure {
+  row?: number;
+  rowNumber?: number;
+  holidayName?: string;
+  name?: string;
+  date?: string;
+  error?: string;
+  message?: string;
+}
 
-  for (let index = 0; index < inputs.length; index += 1) {
-    const input = inputs[index];
-    const rowNumber = rowNumbers[index];
+interface HolidayImportApiResponse {
+  success: boolean;
+  message?: string;
+  created?: number;
+  imported?: number;
+  count?: number;
+  total?: number;
+  importedCount?: number;
+  totalImported?: number;
+  holidays?: ApiHoliday[];
+  failed?: HolidayImportApiFailure[];
+  errors?: HolidayImportApiFailure[];
+  data?: {
+    created?: number;
+    imported?: number;
+    count?: number;
+    total?: number;
+    importedCount?: number;
+    totalImported?: number;
+    successful?: number;
+    successCount?: number;
+    inserted?: number;
+    added?: number;
+    holidays?: ApiHoliday[];
+    failed?: HolidayImportApiFailure[];
+    errors?: HolidayImportApiFailure[];
+    skipped?: HolidayImportApiFailure[];
+    results?: HolidayImportApiFailure[];
+  };
+}
 
-    try {
-      await createHoliday(input);
-      result.created += 1;
-    } catch (error) {
-      result.failed.push({
-        rowNumber,
-        holidayName: input.holidayName,
-        date: input.date,
-        error: error instanceof Error ? error.message : "Failed to import holiday",
-      });
-    }
+function mapImportFailure(failure: HolidayImportApiFailure): HolidayImportFailure {
+  return {
+    rowNumber: failure.rowNumber ?? failure.row ?? 0,
+    holidayName: failure.holidayName ?? failure.name ?? "—",
+    date: failure.date ?? "—",
+    error: failure.error ?? failure.message ?? "Failed to import holiday",
+  };
+}
+
+function parseCountFromMessage(message?: string): number | undefined {
+  if (!message) return undefined;
+
+  const match = message.match(/(\d+)\s+holiday/i);
+  return match ? Number(match[1]) : undefined;
+}
+
+function extractImportedCount(data: HolidayImportApiResponse): number {
+  const nested = data.data;
+
+  const explicitCount =
+    data.created ??
+    data.imported ??
+    data.count ??
+    data.total ??
+    data.importedCount ??
+    data.totalImported ??
+    nested?.created ??
+    nested?.imported ??
+    nested?.count ??
+    nested?.total ??
+    nested?.importedCount ??
+    nested?.totalImported ??
+    nested?.successful ??
+    nested?.successCount ??
+    nested?.inserted ??
+    nested?.added;
+
+  if (typeof explicitCount === "number" && explicitCount > 0) {
+    return explicitCount;
   }
 
-  return result;
+  const importedHolidays = data.holidays ?? nested?.holidays;
+  if (importedHolidays?.length) {
+    return importedHolidays.length;
+  }
+
+  const messageCount = parseCountFromMessage(data.message);
+  if (messageCount) {
+    return messageCount;
+  }
+
+  return explicitCount ?? 0;
+}
+
+function mapImportResult(data: HolidayImportApiResponse): HolidayImportResult {
+  const failedItems =
+    data.failed ??
+    data.errors ??
+    data.data?.failed ??
+    data.data?.errors ??
+    [];
+
+  return {
+    created: extractImportedCount(data),
+    failed: failedItems.map(mapImportFailure),
+    message: data.message,
+  };
+}
+
+function getFilenameFromDisposition(header?: string): string | undefined {
+  if (!header) return undefined;
+
+  const utf8Match = /filename\*=UTF-8''([^;]+)/i.exec(header);
+  if (utf8Match?.[1]) {
+    return decodeURIComponent(utf8Match[1]);
+  }
+
+  const match = /filename="?([^";]+)"?/i.exec(header);
+  return match?.[1];
+}
+
+function downloadBlobFile(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportFilename(extension: "csv" | "xlsx"): string {
+  const date = new Date().toISOString().slice(0, 10);
+  return `holidays-${date}.${extension}`;
+}
+
+export async function importHolidaysFile(file: File): Promise<HolidayImportResult> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const { data } = await API.post<HolidayImportApiResponse>(
+    "/admin/holidays/import",
+    formData
+  );
+
+  if (!data.success) {
+    throw new Error(data.message ?? "Failed to import holidays");
+  }
+
+  return mapImportResult(data);
+}
+
+export async function exportHolidaysCsv(year?: number): Promise<void> {
+  const response = await API.get<Blob>("/admin/holidays/export/csv", {
+    responseType: "blob",
+    params: year ? { year } : undefined,
+  });
+
+  const filename =
+    getFilenameFromDisposition(response.headers["content-disposition"]) ??
+    exportFilename("csv");
+
+  downloadBlobFile(new Blob([response.data], { type: "text/csv;charset=utf-8" }), filename);
+}
+
+export async function exportHolidaysExcel(year?: number): Promise<void> {
+  const response = await API.get<Blob>("/admin/holidays/export/excel", {
+    responseType: "blob",
+    params: year ? { year } : undefined,
+  });
+
+  const filename =
+    getFilenameFromDisposition(response.headers["content-disposition"]) ??
+    exportFilename("xlsx");
+
+  downloadBlobFile(
+    new Blob([response.data], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }),
+    filename
+  );
 }

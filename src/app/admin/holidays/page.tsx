@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { format as formatDateFns } from "date-fns";
 import {
   ChevronLeft,
   ChevronRight,
@@ -26,6 +25,14 @@ import { PageHeader } from "@/components/layout/page-header";
 import { FormField } from "@/components/shared/form-field";
 import { TableSkeleton } from "@/components/shared/loading-skeleton";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { TableEmptyRow } from "@/components/shared/table-empty-row";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useFormErrors } from "@/hooks/use-form-errors";
@@ -62,14 +69,14 @@ import { formatDate } from "@/lib/format";
 import {
   downloadCsvFile,
   getHolidayCsvTemplate,
-  holidaysToCsv,
-  parseHolidayCsv,
 } from "@/lib/holiday-csv";
 import {
   createHoliday,
   deleteHoliday,
+  exportHolidaysCsv,
+  exportHolidaysExcel,
   getHolidays,
-  importHolidays,
+  importHolidaysFile,
   updateHoliday,
   type HolidayImportResult,
 } from "@/lib/holidays";
@@ -99,13 +106,18 @@ function toDateInputValue(value: string): string {
 
 type HolidayField = "holidayName" | "date";
 
+const CURRENT_YEAR = new Date().getFullYear();
+const HOLIDAY_YEAR_OPTIONS = Array.from({ length: 7 }, (_, index) => CURRENT_YEAR - 3 + index);
+
 export default function HolidaysPage() {
   const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR);
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(new Date()));
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [exportingFormat, setExportingFormat] = useState<"csv" | "excel" | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [importResult, setImportResult] = useState<HolidayImportResult | null>(null);
   const [deletingHoliday, setDeletingHoliday] = useState<Holiday | null>(null);
@@ -128,7 +140,7 @@ export default function HolidaysPage() {
   const loadHolidays = useCallback(async () => {
     setIsLoading(true);
     try {
-      const items = await getHolidays();
+      const items = await getHolidays(selectedYear);
       setHolidays(items);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to fetch holidays";
@@ -136,7 +148,7 @@ export default function HolidaysPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [selectedYear]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -146,10 +158,41 @@ export default function HolidaysPage() {
     return () => clearTimeout(timer);
   }, [loadHolidays]);
 
+  const handleYearChange = (value: string) => {
+    const year = Number(value);
+    setSelectedYear(year);
+    setVisibleMonth((prev) => startOfMonth(new Date(year, prev.getMonth(), 1)));
+  };
+
+  const goToPreviousMonth = () => {
+    const nextMonth = startOfMonth(addMonths(visibleMonth, -1));
+    setVisibleMonth(nextMonth);
+    setSelectedYear(nextMonth.getFullYear());
+  };
+
+  const goToNextMonth = () => {
+    const nextMonth = startOfMonth(addMonths(visibleMonth, 1));
+    setVisibleMonth(nextMonth);
+    setSelectedYear(nextMonth.getFullYear());
+  };
+
+  const goToCurrentMonth = () => {
+    const currentMonth = startOfMonth(new Date());
+    setVisibleMonth(currentMonth);
+    setSelectedYear(currentMonth.getFullYear());
+  };
+
   const sortedHolidays = useMemo(
     () => [...holidays].sort((a, b) => a.date.localeCompare(b.date)),
     [holidays]
   );
+
+  const yearOptions = useMemo(() => {
+    const options = new Set(HOLIDAY_YEAR_OPTIONS);
+    options.add(selectedYear);
+    options.add(visibleMonth.getFullYear());
+    return Array.from(options).sort((a, b) => a - b);
+  }, [selectedYear, visibleMonth]);
 
   const resetAndCloseModal = () => {
     setModalOpen(false);
@@ -239,15 +282,32 @@ export default function HolidaysPage() {
     downloadCsvFile(getHolidayCsvTemplate(), "holiday-template.csv");
   };
 
-  const handleExportCsv = () => {
-    if (sortedHolidays.length === 0) {
-      toast.error("No holidays available to export");
-      return;
-    }
+  const isExporting = exportingFormat !== null;
 
-    const filename = `holidays-${formatDateFns(new Date(), "yyyy-MM-dd")}.csv`;
-    downloadCsvFile(holidaysToCsv(sortedHolidays), filename);
-    toast.success("Holiday list exported");
+  const handleExportCsv = async () => {
+    setExportingFormat("csv");
+    try {
+      await exportHolidaysCsv(selectedYear);
+      toast.success("Holiday list exported");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to export holidays";
+      toast.error(message);
+    } finally {
+      setExportingFormat(null);
+    }
+  };
+
+  const handleExportExcel = async () => {
+    setExportingFormat("excel");
+    try {
+      await exportHolidaysExcel(selectedYear);
+      toast.success("Holiday list exported");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to export holidays";
+      toast.error(message);
+    } finally {
+      setExportingFormat(null);
+    }
   };
 
   const handleImportClick = () => {
@@ -262,38 +322,14 @@ export default function HolidaysPage() {
       return;
     }
 
-    if (!file.name.toLowerCase().endsWith(".csv")) {
-      toast.error("Please select a CSV file");
+    if (!/\.(csv|xlsx|xls)$/i.test(file.name)) {
+      toast.error("Please select a CSV or Excel file");
       return;
     }
 
     setIsImporting(true);
     try {
-      const content = await file.text();
-      const { rows, errors } = parseHolidayCsv(content);
-
-      if (errors.length > 0) {
-        const preview = errors
-          .slice(0, 3)
-          .map((error) => `Row ${error.rowNumber}: ${error.message}`)
-          .join(" ");
-        toast.error(
-          errors.length > 3
-            ? `${preview} ...and ${errors.length - 3} more error(s).`
-            : preview
-        );
-        return;
-      }
-
-      if (rows.length === 0) {
-        toast.error("No holiday rows found in the CSV file");
-        return;
-      }
-
-      const result = await importHolidays(
-        rows.map((row) => row.input),
-        rows.map((row) => row.rowNumber)
-      );
+      const result = await importHolidaysFile(file);
 
       setImportResult(result);
       await loadHolidays();
@@ -305,8 +341,11 @@ export default function HolidaysPage() {
         toast.warning(
           `${result.created} holiday(s) imported, ${result.failed.length} failed`
         );
-      } else {
+      } else if (result.failed.length > 0) {
         toast.error("No holidays were imported");
+      } else {
+        toast.success(result.message ?? "Holidays imported successfully");
+        setImportResult(null);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to import holidays";
@@ -323,42 +362,88 @@ export default function HolidaysPage() {
         description="Manage company holidays and calendar"
         actions={
           <>
+            <Select value={String(selectedYear)} onValueChange={handleYearChange}>
+              <SelectTrigger className="w-[110px]" aria-label="Filter by year">
+                <SelectValue placeholder="Year" />
+              </SelectTrigger>
+              <SelectContent>
+                {yearOptions.map((year) => (
+                  <SelectItem key={year} value={String(year)}>
+                    {year}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <input
               ref={fileInputRef}
               type="file"
-              accept=".csv,text/csv"
+              accept=".csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               className="hidden"
               onChange={(event) => void handleImportFile(event)}
             />
             <Button
               variant="outline"
               onClick={handleDownloadTemplate}
-              disabled={isImporting}
+              disabled={isImporting || isExporting}
             >
               <Download className="mr-2 size-4" />
               Template
             </Button>
-            <Button
-              variant="outline"
-              onClick={handleExportCsv}
-              disabled={isLoading || isImporting || sortedHolidays.length === 0}
-            >
-              <Download className="mr-2 size-4" />
-              Export CSV
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  aria-label="Export holidays"
+                  disabled={isLoading || isImporting || isExporting}
+                >
+                  {isExporting ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Download className="size-4" />
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuLabel>Export as</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  disabled={isExporting}
+                  onClick={() => void handleExportCsv()}
+                >
+                  {exportingFormat === "csv" ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Download className="size-4" />
+                  )}
+                  CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={isExporting}
+                  onClick={() => void handleExportExcel()}
+                >
+                  {exportingFormat === "excel" ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Download className="size-4" />
+                  )}
+                  Excel
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button
               variant="outline"
               onClick={handleImportClick}
-              disabled={isImporting}
+              disabled={isImporting || isExporting}
             >
               {isImporting ? (
                 <Loader2 className="mr-2 size-4 animate-spin" />
               ) : (
                 <Upload className="mr-2 size-4" />
               )}
-              {isImporting ? "Importing..." : "Import CSV"}
+              {isImporting ? "Importing..." : "Import"}
             </Button>
-            <Button onClick={openAddModal} disabled={isImporting}>
+            <Button onClick={openAddModal} disabled={isImporting || isExporting}>
               <Plus className="mr-2 size-4" />
               Add Holiday
             </Button>
@@ -374,7 +459,7 @@ export default function HolidaysPage() {
               <Button
                 variant="outline"
                 size="icon-sm"
-                onClick={() => setVisibleMonth((prev) => addMonths(prev, -1))}
+                onClick={goToPreviousMonth}
                 aria-label="Previous month"
               >
                 <ChevronLeft className="size-4" />
@@ -382,14 +467,14 @@ export default function HolidaysPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setVisibleMonth(startOfMonth(new Date()))}
+                onClick={goToCurrentMonth}
               >
                 Current Month
               </Button>
               <Button
                 variant="outline"
                 size="icon-sm"
-                onClick={() => setVisibleMonth((prev) => addMonths(prev, 1))}
+                onClick={goToNextMonth}
                 aria-label="Next month"
               >
                 <ChevronRight className="size-4" />

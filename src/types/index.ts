@@ -55,6 +55,7 @@ export interface EmployeeProfile {
   skillsStatus?: ProfileApprovalStatus;
   primarySkill?: string;
   certifications?: EmployeeCertification[];
+  resumeUrl?: string;
   createdAt?: string;
   updatedAt?: string;
 }

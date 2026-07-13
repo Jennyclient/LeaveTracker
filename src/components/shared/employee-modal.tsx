@@ -6,7 +6,6 @@ import { Eye, Loader2, Pencil, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 import { EmployeeFormWizard } from "@/components/shared/employee-form-wizard";
-import { SkillStarRatingDisplay } from "@/components/shared/skill-star-rating";
 import { ActiveBadge, ProfileApprovalBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -341,22 +340,6 @@ function EmployeeModalView({
               )}
             </div>
           </div>
-          {current.skills && current.skills.length > 0 && (
-            <div className="space-y-2 sm:col-span-2">
-              <Label>Skill Proficiency</Label>
-              <div className="space-y-2 rounded-md border bg-muted/30 px-3 py-2">
-                {current.skills.map((skill) => (
-                  <div
-                    key={skill.name}
-                    className="flex items-center justify-between gap-3"
-                  >
-                    <span className="text-sm">{skill.name}</span>
-                    <SkillStarRatingDisplay value={skill.proficiency} size="sm" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
           <ReadOnlyField label="Primary Skill" value={current.primarySkill} />
           <div className="space-y-2 sm:col-span-2">
             <Label>Certifications</Label>

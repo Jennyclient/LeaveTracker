@@ -2,6 +2,7 @@ import API from "@/lib/api";
 import type { Holiday, LeaveRequest, LeaveStatus } from "@/types";
 
 export interface LeaveUtilizationItem {
+  id?: string;
   type: string;
   used: number;
   total: number;
@@ -188,12 +189,13 @@ export async function getAdminDashboard(): Promise<AdminDashboardData> {
       .map(mapHoliday)
       .filter((h) => Boolean(h.date))
       .slice(0, 5),
-    leaveUtilization: employeeConsumedLeaves.map((item) => {
+    leaveUtilization: employeeConsumedLeaves.map((item, index) => {
       const record = getRecord(item);
       const consumed = toNumber(record.totalConsumedLeaves);
       const percent = maxConsumed > 0 ? (consumed / maxConsumed) * 100 : 0;
 
       return {
+        id: String(record.employeeId ?? record.id ?? index),
         type: String(record.employeeName ?? "Employee"),
         used: Number(percent.toFixed(1)),
         total: consumed,
