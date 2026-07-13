@@ -1,4 +1,4 @@
-import type { LeaveStatus, ProfileApprovalStatus } from "@/types";
+import type { LeaveStatus, PayrollDisbursementStatus, ProfileApprovalStatus } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -80,6 +80,37 @@ export function ProfileApprovalBadge({
   status: ProfileApprovalStatus;
 }) {
   const config = profileApprovalConfig[status];
+  return (
+    <Badge variant="outline" className={cn("font-medium", config.className)}>
+      {config.label}
+    </Badge>
+  );
+}
+
+const disbursementStatusConfig: Record<
+  PayrollDisbursementStatus,
+  { label: string; className: string }
+> = {
+  pending: {
+    label: "Pending",
+    className: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+  },
+  approved: {
+    label: "Approved",
+    className: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
+  },
+  disbursed: {
+    label: "Disbursed",
+    className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+  },
+};
+
+export function DisbursementStatusBadge({
+  status,
+}: {
+  status: PayrollDisbursementStatus;
+}) {
+  const config = disbursementStatusConfig[status];
   return (
     <Badge variant="outline" className={cn("font-medium", config.className)}>
       {config.label}

@@ -26,8 +26,10 @@ interface ApiEmployeeSalary {
   basicSalary?: number;
   hra?: number;
   specialAllowance?: number;
+  pf?: number;
   providentFund?: number;
   professionalTax?: number;
+  salaryEffectiveDate?: string;
   effectiveFrom?: string;
   payrollType?: ApiPayrollType;
 }
@@ -121,14 +123,16 @@ const payrollTypeFromApi: Record<ApiPayrollType, PayrollType> = {
 function mapApiSalary(salary?: ApiEmployeeSalary): EmployeeSalary | undefined {
   if (!salary) return undefined;
 
+  const effectiveFrom = salary.salaryEffectiveDate ?? salary.effectiveFrom;
+
   return {
     ctc: salary.ctc,
     basicSalary: salary.basicSalary,
     hra: salary.hra,
     specialAllowance: salary.specialAllowance,
-    providentFund: salary.providentFund,
+    providentFund: salary.pf ?? salary.providentFund,
     professionalTax: salary.professionalTax,
-    effectiveFrom: salary.effectiveFrom,
+    effectiveFrom,
     payrollType: salary.payrollType
       ? payrollTypeFromApi[salary.payrollType]
       : undefined,

@@ -6,6 +6,7 @@ import { Eye, Loader2, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { ActiveBadge } from "@/components/shared/status-badge";
+import { FormField } from "@/components/shared/form-field";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -34,6 +35,14 @@ import {
   formatBooleanLabel,
   updateLeaveType,
 } from "@/lib/leave-types";
+import {
+  buildFieldErrors,
+  hasFieldErrors,
+  validatePositiveNumber,
+  validateRequired,
+  validateSelect,
+} from "@/lib/form-validation";
+import { useFormErrors } from "@/hooks/use-form-errors";
 import type { AccrualType, LeaveType } from "@/types";
 
 export type LeaveTypeModalState =
@@ -54,6 +63,13 @@ type FormState = {
   carryForwardRules: string;
   probationRules: string;
 };
+
+type LeaveTypeField =
+  | "leaveName"
+  | "annualQuota"
+  | "accrualType"
+  | "policyName"
+  | "maxCarryForward";
 
 const emptyForm: FormState = {
   leaveName: "",
@@ -307,21 +323,38 @@ function LeaveTypeForm({
     mode === "edit" && item ? itemToForm(item) : emptyForm
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { errors, setFormErrors, clearFieldError } = useFormErrors<LeaveTypeField>();
 
   const updateField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+    clearFieldError(key as LeaveTypeField);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (
-      !form.leaveName.trim() ||
-      !form.policyName.trim() ||
-      !form.annualQuota.trim() ||
-      !form.accrualType
-    ) {
-      toast.error("Please fill in all required leave type and policy fields");
+    const nextErrors = buildFieldErrors<LeaveTypeField>([
+      { field: "leaveName", error: validateRequired(form.leaveName, "Leave name is required") },
+      {
+        field: "policyName",
+        error: validateRequired(form.policyName, "Policy name is required"),
+      },
+      { field: "annualQuota", error: validatePositiveNumber(form.annualQuota, "Annual quota") },
+      {
+        field: "accrualType",
+        error: validateSelect(form.accrualType, "Please select an accrual type"),
+      },
+      {
+        field: "maxCarryForward",
+        error: form.maxCarryForward.trim()
+          ? validatePositiveNumber(form.maxCarryForward, "Max carry forward")
+          : null,
+      },
+    ]);
+
+    setFormErrors(nextErrors);
+
+    if (hasFieldErrors(nextErrors)) {
       return;
     }
 
@@ -329,16 +362,6 @@ function LeaveTypeForm({
     const maxCarryForward = form.maxCarryForward.trim()
       ? Number(form.maxCarryForward)
       : 0;
-
-    if (Number.isNaN(annualQuota) || annualQuota < 0) {
-      toast.error("Annual quota must be a valid number");
-      return;
-    }
-
-    if (Number.isNaN(maxCarryForward) || maxCarryForward < 0) {
-      toast.error("Max carry forward must be a valid number");
-      return;
-    }
 
     const payload = {
       leaveName: form.leaveName,
@@ -382,6 +405,7 @@ function LeaveTypeForm({
   return (
     <form
       onSubmit={handleSubmit}
+      noValidate
       className="flex min-h-0 flex-1 flex-col"
     >
       <div className={modalBodyClass}>
@@ -391,20 +415,17 @@ function LeaveTypeForm({
               Leave Type
             </p>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="leave-name">Name</Label>
+            <FormField className="sm:col-span-2" label="Name" htmlFor="leave-name" required error={errors.leaveName}>
               <Input
                 id="leave-name"
                 placeholder={placeholders.leaveName}
                 value={form.leaveName}
                 onChange={(e) => updateField("leaveName", e.target.value)}
                 disabled={isSubmitting}
-                required
               />
-            </div>
+            </FormField>
 
-            <div className="space-y-2">
-              <Label htmlFor="annual-quota">Annual Quota</Label>
+            <FormField label="Annual Quota" htmlFor="annual-quota" required error={errors.annualQuota}>
               <Input
                 id="annual-quota"
                 type="number"
@@ -413,12 +434,10 @@ function LeaveTypeForm({
                 value={form.annualQuota}
                 onChange={(e) => updateField("annualQuota", e.target.value)}
                 disabled={isSubmitting}
-                required
               />
-            </div>
+            </FormField>
 
-            <div className="space-y-2">
-              <Label>Accrual Type</Label>
+            <FormField label="Accrual Type" htmlFor="accrual-type" required error={errors.accrualType}>
               <Select
                 value={form.accrualType || undefined}
                 onValueChange={(value) =>
@@ -426,7 +445,7 @@ function LeaveTypeForm({
                 }
                 disabled={isSubmitting}
               >
-                <SelectTrigger>
+                <SelectTrigger id="accrual-type" className="w-full">
                   <SelectValue placeholder={placeholders.accrualType} />
                 </SelectTrigger>
                 <SelectContent>
@@ -437,7 +456,7 @@ function LeaveTypeForm({
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </FormField>
 
             <div className="flex items-center justify-between rounded-lg border px-3 py-2">
               <Label htmlFor="carry-forward">Carry Forward</Label>
@@ -455,11 +474,17 @@ function LeaveTypeForm({
                 id="max-carry-forward"
                 type="number"
                 min={0}
+                aria-invalid={Boolean(errors.maxCarryForward)}
                 placeholder={placeholders.maxCarryForward}
                 value={form.maxCarryForward}
                 onChange={(e) => updateField("maxCarryForward", e.target.value)}
                 disabled={isSubmitting || !form.carryForward}
               />
+              {errors.maxCarryForward ? (
+                <p className="text-xs leading-relaxed text-destructive" role="alert">
+                  {errors.maxCarryForward}
+                </p>
+              ) : null}
             </div>
 
             <div className="flex items-center justify-between rounded-lg border px-3 py-2">
@@ -489,17 +514,21 @@ function LeaveTypeForm({
             Policy Rules
           </p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="policy-name">Policy Name</Label>
+            <FormField
+              className="sm:col-span-2"
+              label="Policy Name"
+              htmlFor="policy-name"
+              required
+              error={errors.policyName}
+            >
               <Input
                 id="policy-name"
                 placeholder={placeholders.policyName}
                 value={form.policyName}
                 onChange={(e) => updateField("policyName", e.target.value)}
                 disabled={isSubmitting}
-                required
               />
-            </div>
+            </FormField>
             <div className="space-y-2">
               <Label htmlFor="accrual-rules">Accrual Rules</Label>
               <Textarea

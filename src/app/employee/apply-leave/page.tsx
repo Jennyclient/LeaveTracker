@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Upload } from "lucide-react";
+import { FileText, Loader2, MapPin, Upload, X } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
+import { FormField, FormFieldRow } from "@/components/shared/form-field";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -20,16 +20,40 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { getEmployeeHolidays } from "@/lib/holidays";
 import { calculateLeaveDays, formatLeaveDayCount } from "@/lib/leave-days";
+import {
+  uploadLeaveAttachment,
+  validateLeaveAttachmentFile,
+} from "@/lib/leave-attachments";
 import { createEmployeeLeaveRequest } from "@/lib/leave-requests";
 import { getEmployeeLeaveTypesWithBalance } from "@/lib/leave-types";
+import { useFormErrors } from "@/hooks/use-form-errors";
+import {
+  buildFieldErrors,
+  hasFieldErrors,
+  sanitizePhoneInput,
+  validateDateRange,
+  validatePhone,
+  validateRequired,
+  validateSelect,
+} from "@/lib/form-validation";
 import { toast } from "sonner";
 import type { HalfDayPeriod, Holiday, LeaveType } from "@/types";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { cn } from "@/lib/utils";
+import { formatHalfDayPeriod } from "@/lib/format";
 
 type LeaveBalanceByType = Record<
   string,
   { allocatedLeaves: number; consumedLeaves: number; availableLeaves: number }
 >;
+
+type ApplyLeaveField =
+  | "leaveTypeId"
+  | "startDate"
+  | "endDate"
+  | "halfDayPeriod"
+  | "reason"
+  | "emergencyContactNo";
 
 export default function ApplyLeavePage() {
   const router = useRouter();
@@ -46,8 +70,15 @@ export default function ApplyLeavePage() {
   const [halfDay, setHalfDay] = useState(false);
   const [halfDayPeriod, setHalfDayPeriod] = useState<HalfDayPeriod>("FIRST_HALF");
   const [reason, setReason] = useState("");
+  const [emergencyContactNo, setEmergencyContactNo] = useState("");
+  const [location, setLocation] = useState("");
   const [attachmentDoc, setAttachmentDoc] = useState("");
+  const [selectedAttachment, setSelectedAttachment] = useState<File | null>(null);
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { errors, setFormErrors, clearFieldError } = useFormErrors<ApplyLeaveField>();
 
   useEffect(() => {
     let cancelled = false;
@@ -137,6 +168,35 @@ export default function ApplyLeavePage() {
     });
   }, [startDate, endDate, halfDay, holidays]);
 
+  const selectedLeaveType = useMemo(
+    () => leaveTypes.find((leaveType) => leaveType.id === leaveTypeId),
+    [leaveTypeId, leaveTypes]
+  );
+
+  const availableLeaveBalance = useMemo(() => {
+    if (!selectedLeaveType) {
+      return null;
+    }
+
+    return (
+      leaveBalancesByType[selectedLeaveType.leaveName.trim().toLowerCase()]
+        ?.availableLeaves ?? 0
+    );
+  }, [leaveBalancesByType, selectedLeaveType]);
+
+  const remainingLeaveBalance = useMemo(() => {
+    if (availableLeaveBalance === null || requestedLeaveDays === null) {
+      return null;
+    }
+
+    return Math.max(availableLeaveBalance - requestedLeaveDays, 0);
+  }, [availableLeaveBalance, requestedLeaveDays]);
+
+  const exceedsAvailableBalance =
+    availableLeaveBalance !== null &&
+    requestedLeaveDays !== null &&
+    requestedLeaveDays > availableLeaveBalance;
+
   const handleHalfDayChange = (checked: boolean) => {
     setHalfDay(checked);
     if (checked) {
@@ -154,31 +214,127 @@ export default function ApplyLeavePage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleAttachmentSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    const validationError = validateLeaveAttachmentFile(file);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+
+    setSelectedAttachment(file);
+    setAttachmentDoc("");
+  };
+
+  const handleRemoveAttachment = () => {
+    setSelectedAttachment(null);
+    setAttachmentDoc("");
+  };
+
+  const handleDetectLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error("Location detection is not supported in this browser");
+      return;
+    }
+
+    setIsDetectingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setLocation(`${latitude.toFixed(5)}, ${longitude.toFixed(5)}`);
+        setIsDetectingLocation(false);
+        toast.success("Current location added");
+      },
+      (error) => {
+        setIsDetectingLocation(false);
+        toast.error(error.message || "Unable to detect location");
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10_000,
+      }
+    );
+  };
+
+  const resolveAttachmentDoc = async (): Promise<string | undefined> => {
+    if (attachmentDoc.trim()) {
+      return attachmentDoc.trim();
+    }
+
+    if (!selectedAttachment) {
+      return undefined;
+    }
+
+    setIsUploadingAttachment(true);
+    try {
+      const uploadedUrl = await uploadLeaveAttachment(selectedAttachment);
+      setAttachmentDoc(uploadedUrl);
+      return uploadedUrl;
+    } finally {
+      setIsUploadingAttachment(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!leaveTypeId) {
-      toast.error("Please select a leave type");
+    const endDateError =
+      validateRequired(endDate, "Please select an end date") ??
+      validateDateRange(startDate, endDate);
+
+    const nextErrors = buildFieldErrors<ApplyLeaveField>([
+      {
+        field: "leaveTypeId",
+        error: validateSelect(leaveTypeId, "Please select a leave type"),
+      },
+      {
+        field: "startDate",
+        error: validateRequired(startDate, "Please select a start date"),
+      },
+      { field: "endDate", error: endDateError },
+      {
+        field: "halfDayPeriod",
+        error:
+          halfDay && !halfDayPeriod
+            ? "Please select first half or second half"
+            : null,
+      },
+      {
+        field: "reason",
+        error: validateRequired(reason, "Please provide a reason for leave"),
+      },
+      {
+        field: "emergencyContactNo",
+        error: validatePhone(emergencyContactNo, "emergency contact number"),
+      },
+    ]);
+
+    setFormErrors(nextErrors);
+
+    if (hasFieldErrors(nextErrors)) {
       return;
     }
 
-    if (!startDate || !endDate) {
-      toast.error("Please select start and end dates");
+    if (requestedLeaveDays === null || requestedLeaveDays <= 0) {
+      toast.error("Selected dates do not include any applicable leave days");
       return;
     }
 
-    if (new Date(startDate) > new Date(endDate)) {
-      toast.error("End date cannot be before start date");
-      return;
-    }
-
-    if (halfDay && !halfDayPeriod) {
-      toast.error("Please select first half or second half");
+    if (exceedsAvailableBalance) {
+      toast.error("Requested leave days exceed your available balance");
       return;
     }
 
     setIsSubmitting(true);
     try {
+      const resolvedAttachmentDoc = await resolveAttachmentDoc();
+
       await createEmployeeLeaveRequest({
         leaveType: leaveTypeId,
         startDate,
@@ -186,7 +342,9 @@ export default function ApplyLeavePage() {
         halfDay,
         halfDayPeriod: halfDay ? halfDayPeriod : undefined,
         reason,
-        attachmentDoc: attachmentDoc.trim() || undefined,
+        emergencyContactNo,
+        location: location.trim() || undefined,
+        attachmentDoc: resolvedAttachmentDoc,
       });
 
       toast.success("Leave request submitted successfully");
@@ -213,15 +371,22 @@ export default function ApplyLeavePage() {
             <CardTitle>Leave Application Form</CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label>Leave Type</Label>
+            <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+              <FormField
+                label="Leave Type"
+                htmlFor="leaveType"
+                required
+                error={errors.leaveTypeId}
+              >
                 <Select
                   value={leaveTypeId}
-                  onValueChange={setLeaveTypeId}
+                  onValueChange={(value) => {
+                    setLeaveTypeId(value);
+                    clearFieldError("leaveTypeId");
+                  }}
                   disabled={isLoading || isSubmitting}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="leaveType" className="w-full">
                     <SelectValue placeholder="Select leave type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -232,132 +397,304 @@ export default function ApplyLeavePage() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
+              </FormField>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="startDate">Start Date</Label>
+              <div className="grid gap-5 sm:grid-cols-2">
+                <FormField
+                  label="Start Date"
+                  htmlFor="startDate"
+                  required
+                  error={errors.startDate}
+                >
                   <Input
                     id="startDate"
                     type="date"
-                    required
                     value={startDate}
-                    onChange={(e) => handleStartDateChange(e.target.value)}
+                    onChange={(e) => {
+                      handleStartDateChange(e.target.value);
+                      clearFieldError("startDate");
+                      clearFieldError("endDate");
+                    }}
                     disabled={isLoading || isSubmitting}
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="endDate">End Date</Label>
+                </FormField>
+                <FormField
+                  label="End Date"
+                  htmlFor="endDate"
+                  required
+                  error={errors.endDate}
+                >
                   <Input
                     id="endDate"
                     type="date"
-                    required
                     value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
+                    onChange={(e) => {
+                      setEndDate(e.target.value);
+                      clearFieldError("endDate");
+                    }}
                     disabled={isLoading || isSubmitting || halfDay}
                     min={startDate || undefined}
                   />
-                </div>
+                </FormField>
               </div>
 
-              <div className="flex items-center justify-between rounded-lg border p-3">
-                <div>
-                  <p className="text-sm font-medium">Half Day</p>
-                  <p className="text-xs text-muted-foreground">
-                    Apply for half day leave
-                  </p>
-                </div>
+              <FormFieldRow
+                label="Half Day"
+                description="Apply for half day leave"
+              >
                 <Switch
                   checked={halfDay}
                   onCheckedChange={handleHalfDayChange}
                   disabled={isLoading || isSubmitting}
                 />
-              </div>
+              </FormFieldRow>
 
               {halfDay && (
-                <div className="space-y-3 rounded-lg border p-3">
-                  <p className="text-sm font-medium">Select Half</p>
+                <FormField
+                  label="Half Day Period"
+                  description="Choose whether the leave applies to the first or second half of the day."
+                  className="rounded-lg border p-4"
+                  error={errors.halfDayPeriod}
+                >
                   <RadioGroup
                     value={halfDayPeriod}
-                    onValueChange={(value) =>
-                      setHalfDayPeriod(value as HalfDayPeriod)
-                    }
+                    onValueChange={(value) => {
+                      setHalfDayPeriod(value as HalfDayPeriod);
+                      clearFieldError("halfDayPeriod");
+                    }}
                     disabled={isLoading || isSubmitting}
                     className="grid gap-3 sm:grid-cols-2"
                   >
-                    <div className="flex items-center gap-2 rounded-md border p-3">
+                    <label
+                      htmlFor="first-half"
+                      className={cn(
+                        "flex cursor-pointer items-center gap-3 rounded-md border p-3",
+                        halfDayPeriod === "FIRST_HALF" && "border-primary bg-primary/5"
+                      )}
+                    >
                       <RadioGroupItem value="FIRST_HALF" id="first-half" />
-                      <Label htmlFor="first-half" className="font-normal">
-                        First Half
-                      </Label>
-                    </div>
-                    <div className="flex items-center gap-2 rounded-md border p-3">
+                      <span className="text-sm font-normal">First Half</span>
+                    </label>
+                    <label
+                      htmlFor="second-half"
+                      className={cn(
+                        "flex cursor-pointer items-center gap-3 rounded-md border p-3",
+                        halfDayPeriod === "SECOND_HALF" && "border-primary bg-primary/5"
+                      )}
+                    >
                       <RadioGroupItem value="SECOND_HALF" id="second-half" />
-                      <Label htmlFor="second-half" className="font-normal">
-                        Second Half
-                      </Label>
-                    </div>
+                      <span className="text-sm font-normal">Second Half</span>
+                    </label>
                   </RadioGroup>
-                </div>
+                </FormField>
               )}
 
               {requestedLeaveDays !== null && (
-                <div className="rounded-lg border bg-muted/40 p-3">
-                  <p className="text-sm font-medium">
-                    Leave days applying for:{" "}
-                    <span className="text-primary">
-                      {formatLeaveDayCount(requestedLeaveDays)}
-                    </span>
-                  </p>
+                <div className="space-y-3 rounded-lg border bg-muted/40 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-medium">
+                      Leave days applying for:{" "}
+                      <span className="text-primary">
+                        {formatLeaveDayCount(requestedLeaveDays)}
+                      </span>
+                    </p>
+                    {halfDay && (
+                      <span className="rounded-full bg-background px-2 py-1 text-xs text-muted-foreground">
+                        {formatHalfDayPeriod(halfDayPeriod)}
+                      </span>
+                    )}
+                  </div>
+
+                  {availableLeaveBalance !== null && (
+                    <div className="grid gap-2 text-sm sm:grid-cols-2">
+                      <div className="rounded-md border bg-background p-2">
+                        <p className="text-xs text-muted-foreground">Available balance</p>
+                        <p className="font-medium">
+                          {formatLeaveDayCount(availableLeaveBalance)}
+                        </p>
+                      </div>
+                      <div className="rounded-md border bg-background p-2">
+                        <p className="text-xs text-muted-foreground">Balance after request</p>
+                        <p
+                          className={cn(
+                            "font-medium",
+                            exceedsAvailableBalance && "text-destructive"
+                          )}
+                        >
+                          {remainingLeaveBalance !== null
+                            ? formatLeaveDayCount(remainingLeaveBalance)
+                            : "—"}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   {requestedLeaveDays === 0 && (
-                    <p className="mt-1 text-xs text-destructive">
+                    <p className="text-xs text-destructive">
                       No applicable leave days in the selected range after excluding
                       holidays.
+                    </p>
+                  )}
+
+                  {exceedsAvailableBalance && (
+                    <p className="text-xs text-destructive">
+                      Requested leave days exceed your available balance for this leave
+                      type.
                     </p>
                   )}
                 </div>
               )}
 
-              <div className="space-y-2">
-                <Label htmlFor="reason">Reason</Label>
+              <FormField
+                label="Reason"
+                htmlFor="reason"
+                required
+                error={errors.reason}
+              >
                 <Textarea
                   id="reason"
                   placeholder="Provide reason for leave..."
                   rows={4}
-                  required
                   value={reason}
-                  onChange={(e) => setReason(e.target.value)}
+                  onChange={(e) => {
+                    setReason(e.target.value);
+                    clearFieldError("reason");
+                  }}
                   disabled={isLoading || isSubmitting}
                 />
-              </div>
+              </FormField>
 
-              <div className="space-y-2">
-                <Label htmlFor="attachmentDoc">Attachment Path</Label>
-                <div className="flex items-center gap-2">
+              <FormField
+                label="Emergency Contact Number"
+                htmlFor="emergencyContactNo"
+                required
+                error={errors.emergencyContactNo}
+              >
+                <Input
+                  id="emergencyContactNo"
+                  type="tel"
+                  inputMode="numeric"
+                  placeholder="Enter emergency contact number"
+                  value={emergencyContactNo}
+                  onChange={(e) => {
+                    setEmergencyContactNo(sanitizePhoneInput(e.target.value));
+                    clearFieldError("emergencyContactNo");
+                  }}
+                  disabled={isLoading || isSubmitting}
+                />
+              </FormField>
+
+              <FormField
+                label="Location During Leave"
+                htmlFor="location"
+                description="Optional. Share where you can be reached during leave."
+              >
+                <div className="flex gap-2">
                   <Input
-                    id="attachmentDoc"
-                    placeholder="uploads/leave-docs/document.pdf"
-                    value={attachmentDoc}
-                    onChange={(e) => setAttachmentDoc(e.target.value)}
-                    disabled={isLoading || isSubmitting}
+                    id="location"
+                    placeholder="City, address, or coordinates"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    disabled={isLoading || isSubmitting || isDetectingLocation}
+                    className="min-w-0 flex-1"
                   />
-                  <Button type="button" variant="outline" size="sm" disabled>
-                    <Upload className="mr-2 size-4" />
-                    Upload
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="shrink-0"
+                    onClick={handleDetectLocation}
+                    disabled={isLoading || isSubmitting || isDetectingLocation}
+                    aria-label="Detect current location"
+                  >
+                    {isDetectingLocation ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <MapPin className="size-4" />
+                    )}
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Optional supporting document path
-                </p>
-              </div>
+              </FormField>
 
-              <Button
-                type="submit"
-                className="w-full sm:w-auto"
-                disabled={isLoading || isSubmitting}
+              <FormField
+                label="Supporting Document"
+                htmlFor="attachment"
+                description="Optional. PDF, JPG, PNG, or WEBP up to 5 MB."
               >
-                {isSubmitting ? "Submitting..." : "Submit Leave Request"}
-              </Button>
+                <input
+                  ref={fileInputRef}
+                  id="attachment"
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={handleAttachmentSelect}
+                  disabled={isLoading || isSubmitting || isUploadingAttachment}
+                />
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isLoading || isSubmitting || isUploadingAttachment}
+                    >
+                      {isUploadingAttachment ? (
+                        <Loader2 className="mr-2 size-4 animate-spin" />
+                      ) : (
+                        <Upload className="mr-2 size-4" />
+                      )}
+                      {isUploadingAttachment ? "Uploading..." : "Choose File"}
+                    </Button>
+                    {(selectedAttachment || attachmentDoc) && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleRemoveAttachment}
+                        disabled={isLoading || isSubmitting || isUploadingAttachment}
+                      >
+                        <X className="mr-2 size-4" />
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+                  {selectedAttachment && (
+                    <div className="flex items-center gap-2 rounded-md border bg-muted/30 p-3 text-sm">
+                      <FileText className="size-4 shrink-0 text-muted-foreground" />
+                      <span className="truncate">{selectedAttachment.name}</span>
+                    </div>
+                  )}
+                  {!selectedAttachment && attachmentDoc && (
+                    <div className="rounded-md border bg-muted/30 p-3 text-sm">
+                      <a
+                        href={attachmentDoc}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-primary hover:underline"
+                      >
+                        View uploaded attachment
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </FormField>
+
+              <div className="pt-1">
+                <Button
+                  type="submit"
+                  className="w-full sm:w-auto"
+                  disabled={
+                    isLoading ||
+                    isSubmitting ||
+                    isUploadingAttachment ||
+                    exceedsAvailableBalance ||
+                    requestedLeaveDays === 0
+                  }
+                >
+                  {isSubmitting ? "Submitting..." : "Submit Leave Request"}
+                </Button>
+              </div>
             </form>
           </CardContent>
         </Card>

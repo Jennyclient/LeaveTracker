@@ -1,7 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { format as formatDateFns } from "date-fns";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Loader2,
+  Pencil,
+  Plus,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import {
   addMonths,
   eachDayOfInterval,
@@ -13,10 +23,17 @@ import {
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/layout/page-header";
+import { FormField } from "@/components/shared/form-field";
 import { TableSkeleton } from "@/components/shared/loading-skeleton";
 import { Button } from "@/components/ui/button";
 import { TableEmptyRow } from "@/components/shared/table-empty-row";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useFormErrors } from "@/hooks/use-form-errors";
+import {
+  buildFieldErrors,
+  hasFieldErrors,
+  validateRequired,
+} from "@/lib/form-validation";
 import {
   Dialog,
   DialogContent,
@@ -26,7 +43,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -44,10 +60,18 @@ import {
 } from "@/components/ui/table";
 import { formatDate } from "@/lib/format";
 import {
+  downloadCsvFile,
+  getHolidayCsvTemplate,
+  holidaysToCsv,
+  parseHolidayCsv,
+} from "@/lib/holiday-csv";
+import {
   createHoliday,
   deleteHoliday,
   getHolidays,
+  importHolidays,
   updateHoliday,
+  type HolidayImportResult,
 } from "@/lib/holidays";
 import { cn } from "@/lib/utils";
 import type { Holiday } from "@/types";
@@ -73,16 +97,23 @@ function toDateInputValue(value: string): string {
   return value.includes("T") ? value.split("T")[0] : value;
 }
 
+type HolidayField = "holidayName" | "date";
+
 export default function HolidaysPage() {
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(new Date()));
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [importResult, setImportResult] = useState<HolidayImportResult | null>(null);
   const [deletingHoliday, setDeletingHoliday] = useState<Holiday | null>(null);
   const [editingHoliday, setEditingHoliday] = useState<Holiday | null>(null);
   const [form, setForm] = useState<HolidayFormState>(INITIAL_FORM);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { errors, setFormErrors, clearFieldError, clearAllErrors } =
+    useFormErrors<HolidayField>();
 
   const holidaysByDate = useMemo(() => {
     const holidayMap = new Map<string, Holiday>();
@@ -124,6 +155,7 @@ export default function HolidaysPage() {
     setModalOpen(false);
     setEditingHoliday(null);
     setForm(INITIAL_FORM);
+    clearAllErrors();
   };
 
   const openAddModal = () => {
@@ -142,10 +174,18 @@ export default function HolidaysPage() {
     setModalOpen(true);
   };
 
-  const handleSaveHoliday = async () => {
+  const handleSaveHoliday = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
     const holidayName = form.holidayName.trim();
-    if (!holidayName || !form.date) {
-      toast.error("Holiday name and date are required");
+    const nextErrors = buildFieldErrors<HolidayField>([
+      { field: "holidayName", error: validateRequired(holidayName, "Holiday name is required") },
+      { field: "date", error: validateRequired(form.date, "Date is required") },
+    ]);
+
+    setFormErrors(nextErrors);
+
+    if (hasFieldErrors(nextErrors)) {
       return;
     }
 
@@ -195,16 +235,134 @@ export default function HolidaysPage() {
     }
   };
 
+  const handleDownloadTemplate = () => {
+    downloadCsvFile(getHolidayCsvTemplate(), "holiday-template.csv");
+  };
+
+  const handleExportCsv = () => {
+    if (sortedHolidays.length === 0) {
+      toast.error("No holidays available to export");
+      return;
+    }
+
+    const filename = `holidays-${formatDateFns(new Date(), "yyyy-MM-dd")}.csv`;
+    downloadCsvFile(holidaysToCsv(sortedHolidays), filename);
+    toast.success("Holiday list exported");
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImportFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      toast.error("Please select a CSV file");
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      const content = await file.text();
+      const { rows, errors } = parseHolidayCsv(content);
+
+      if (errors.length > 0) {
+        const preview = errors
+          .slice(0, 3)
+          .map((error) => `Row ${error.rowNumber}: ${error.message}`)
+          .join(" ");
+        toast.error(
+          errors.length > 3
+            ? `${preview} ...and ${errors.length - 3} more error(s).`
+            : preview
+        );
+        return;
+      }
+
+      if (rows.length === 0) {
+        toast.error("No holiday rows found in the CSV file");
+        return;
+      }
+
+      const result = await importHolidays(
+        rows.map((row) => row.input),
+        rows.map((row) => row.rowNumber)
+      );
+
+      setImportResult(result);
+      await loadHolidays();
+
+      if (result.created > 0 && result.failed.length === 0) {
+        toast.success(`${result.created} holiday(s) imported successfully`);
+        setImportResult(null);
+      } else if (result.created > 0) {
+        toast.warning(
+          `${result.created} holiday(s) imported, ${result.failed.length} failed`
+        );
+      } else {
+        toast.error("No holidays were imported");
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to import holidays";
+      toast.error(message);
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Holiday Management"
         description="Manage company holidays and calendar"
         actions={
-          <Button onClick={openAddModal}>
-            <Plus className="mr-2 size-4" />
-            Add Holiday
-          </Button>
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={(event) => void handleImportFile(event)}
+            />
+            <Button
+              variant="outline"
+              onClick={handleDownloadTemplate}
+              disabled={isImporting}
+            >
+              <Download className="mr-2 size-4" />
+              Template
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleExportCsv}
+              disabled={isLoading || isImporting || sortedHolidays.length === 0}
+            >
+              <Download className="mr-2 size-4" />
+              Export CSV
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleImportClick}
+              disabled={isImporting}
+            >
+              {isImporting ? (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+              ) : (
+                <Upload className="mr-2 size-4" />
+              )}
+              {isImporting ? "Importing..." : "Import CSV"}
+            </Button>
+            <Button onClick={openAddModal} disabled={isImporting}>
+              <Plus className="mr-2 size-4" />
+              Add Holiday
+            </Button>
+          </>
         }
       />
 
@@ -358,29 +516,39 @@ export default function HolidaysPage() {
                 : "Add a new holiday to the calendar"}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Holiday Name</Label>
+          <form
+            onSubmit={(event) => void handleSaveHoliday(event)}
+            className="space-y-5"
+            noValidate
+          >
+            <FormField
+              label="Holiday Name"
+              htmlFor="holiday-name"
+              required
+              error={errors.holidayName}
+            >
               <Input
+                id="holiday-name"
                 placeholder="e.g. Independence Day"
                 value={form.holidayName}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, holidayName: event.target.value }))
-                }
+                onChange={(event) => {
+                  setForm((prev) => ({ ...prev, holidayName: event.target.value }));
+                  clearFieldError("holidayName");
+                }}
               />
-            </div>
-            <div className="space-y-2">
-              <Label>Date</Label>
+            </FormField>
+            <FormField label="Date" htmlFor="holiday-date" required error={errors.date}>
               <Input
+                id="holiday-date"
                 type="date"
                 value={form.date}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, date: event.target.value }))
-                }
+                onChange={(event) => {
+                  setForm((prev) => ({ ...prev, date: event.target.value }));
+                  clearFieldError("date");
+                }}
               />
-            </div>
-            <div className="space-y-2">
-              <Label>Type</Label>
+            </FormField>
+            <FormField label="Type" htmlFor="holiday-type" required>
               <Select
                 value={form.type}
                 onValueChange={(value) =>
@@ -390,7 +558,7 @@ export default function HolidaysPage() {
                   }))
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger id="holiday-type" className="w-full">
                   <SelectValue placeholder="Select type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -399,20 +567,63 @@ export default function HolidaysPage() {
                   <SelectItem value="optional">Optional</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
+            </FormField>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={resetAndCloseModal}
+                disabled={isSaving}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSaving}>
+                {isSaving
+                  ? editingHoliday
+                    ? "Updating..."
+                    : "Adding..."
+                  : editingHoliday
+                    ? "Update Holiday"
+                    : "Add Holiday"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={importResult !== null && importResult.failed.length > 0}
+        onOpenChange={(open) => {
+          if (!open) {
+            setImportResult(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Import Results</DialogTitle>
+            <DialogDescription>
+              {importResult?.created
+                ? `${importResult.created} holiday(s) imported successfully.`
+                : "No holidays were imported."}{" "}
+              {importResult?.failed.length
+                ? `${importResult.failed.length} row(s) could not be imported.`
+                : null}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-64 space-y-2 overflow-y-auto rounded-md border p-3 text-sm">
+            {importResult?.failed.map((failure) => (
+              <div key={`${failure.rowNumber}-${failure.holidayName}-${failure.date}`}>
+                <p className="font-medium">
+                  Row {failure.rowNumber}: {failure.holidayName} ({failure.date})
+                </p>
+                <p className="text-muted-foreground">{failure.error}</p>
+              </div>
+            ))}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={resetAndCloseModal} disabled={isSaving}>
-              Cancel
-            </Button>
-            <Button onClick={() => void handleSaveHoliday()} disabled={isSaving}>
-              {isSaving
-                ? editingHoliday
-                  ? "Updating..."
-                  : "Adding..."
-                : editingHoliday
-                  ? "Update Holiday"
-                  : "Add Holiday"}
+            <Button type="button" onClick={() => setImportResult(null)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

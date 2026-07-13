@@ -25,7 +25,12 @@ export interface ApiManagerRef {
   name: string;
 }
 
-type ApiEmploymentType = "PERMANENT" | "CONTRACT" | "INTERN";
+type ApiEmploymentType =
+  | "FULL_TIME"
+  | "PART_TIME"
+  | "CONTRACT"
+  | "INTERN"
+  | "PERMANENT";
 type ApiPayrollType = "MONTHLY" | "WEEKLY";
 type ApiProfileApprovalStatus = "NOT_SUBMITTED" | "PENDING" | "APPROVED" | "REJECTED";
 
@@ -34,8 +39,10 @@ interface ApiEmployeeSalary {
   basicSalary?: number;
   hra?: number;
   specialAllowance?: number;
+  pf?: number;
   providentFund?: number;
   professionalTax?: number;
+  salaryEffectiveDate?: string;
   effectiveFrom?: string;
   payrollType?: ApiPayrollType;
 }
@@ -162,13 +169,15 @@ export interface EmployeeListFilters {
 }
 
 const employmentTypeFromApi: Record<ApiEmploymentType, EmploymentType> = {
+  FULL_TIME: "permanent",
+  PART_TIME: "permanent",
   PERMANENT: "permanent",
   CONTRACT: "contract",
   INTERN: "intern",
 };
 
 const employmentTypeToApi: Record<EmploymentType, ApiEmploymentType> = {
-  permanent: "PERMANENT",
+  permanent: "FULL_TIME",
   contract: "CONTRACT",
   intern: "INTERN",
 };
@@ -196,17 +205,28 @@ function mapApprovalStatus(
   return status ? approvalStatusFromApi[status] : "not_submitted";
 }
 
+function toSalaryEffectiveDate(value?: string): string | undefined {
+  if (!value?.trim()) return undefined;
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return undefined;
+
+  return date.toISOString();
+}
+
 function mapApiSalary(salary?: ApiEmployeeSalary): EmployeeSalary | undefined {
   if (!salary) return undefined;
+
+  const effectiveFrom = salary.salaryEffectiveDate ?? salary.effectiveFrom;
 
   return {
     ctc: salary.ctc,
     basicSalary: salary.basicSalary,
     hra: salary.hra,
     specialAllowance: salary.specialAllowance,
-    providentFund: salary.providentFund,
+    providentFund: salary.pf ?? salary.providentFund,
     professionalTax: salary.professionalTax,
-    effectiveFrom: salary.effectiveFrom,
+    effectiveFrom,
     payrollType: salary.payrollType
       ? payrollTypeFromApi[salary.payrollType]
       : undefined,
@@ -230,17 +250,30 @@ function mapApiSkillsFromEmployee(skills?: ApiEmployeeSkill[]): EmployeeSkill[] 
   return mapApiSkills(skills);
 }
 
+function hasSalaryData(salary: EmployeeSalary): boolean {
+  return (
+    salary.ctc !== undefined ||
+    salary.basicSalary !== undefined ||
+    salary.hra !== undefined ||
+    salary.specialAllowance !== undefined ||
+    salary.providentFund !== undefined ||
+    salary.professionalTax !== undefined ||
+    Boolean(salary.effectiveFrom?.trim()) ||
+    salary.payrollType !== undefined
+  );
+}
+
 function mapSalaryToApi(salary?: EmployeeSalary) {
-  if (!salary) return undefined;
+  if (!salary || !hasSalaryData(salary)) return undefined;
 
   return {
     ctc: salary.ctc,
     basicSalary: salary.basicSalary,
     hra: salary.hra,
     specialAllowance: salary.specialAllowance,
-    providentFund: salary.providentFund,
+    pf: salary.providentFund,
     professionalTax: salary.professionalTax,
-    effectiveFrom: salary.effectiveFrom,
+    salaryEffectiveDate: toSalaryEffectiveDate(salary.effectiveFrom),
     payrollType: salary.payrollType
       ? payrollTypeToApi[salary.payrollType]
       : undefined,

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { ProfileDetailField } from "@/components/shared/profile-detail-field";
 import { ProfileSectionCard } from "@/components/shared/profile-section-card";
+import { FormField } from "@/components/shared/form-field";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,8 +17,22 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { useFormErrors } from "@/hooks/use-form-errors";
 import { updateEmployeeBank } from "@/lib/profile";
+import {
+  buildFieldErrors,
+  hasFieldErrors,
+  sanitizeAlphaNameInput,
+  sanitizeDigitsInput,
+  sanitizeIfscInput,
+  validateAccountHolderName,
+  validateBankAccountNumber,
+  validateBankBranch,
+  validateBankName,
+  validateConfirmBankAccountNumber,
+  validateIfscCode,
+  validateUpiId,
+} from "@/lib/form-validation";
 import type { EmployeeProfile } from "@/types";
 
 interface EmployeeBankCardProps {
@@ -26,6 +41,15 @@ interface EmployeeBankCardProps {
   dialogOpen?: boolean;
   onDialogOpenChange?: (open: boolean) => void;
 }
+
+type BankField =
+  | "accountHolderName"
+  | "bankName"
+  | "accountNumber"
+  | "confirmAccountNumber"
+  | "ifscCode"
+  | "branch"
+  | "upiId";
 
 export function EmployeeBankCard({
   profile,
@@ -54,6 +78,8 @@ export function EmployeeBankCard({
   const [ifscCode, setIfscCode] = useState(profile.bank?.ifscCode ?? "");
   const [branch, setBranch] = useState(profile.bank?.branch ?? "");
   const [upiId, setUpiId] = useState(profile.bank?.upiId ?? "");
+  const { errors, setFormErrors, clearFieldError, clearAllErrors } =
+    useFormErrors<BankField>();
 
   const resetForm = () => {
     setAccountHolderName(profile.bank?.accountHolderName ?? "");
@@ -71,32 +97,39 @@ export function EmployeeBankCard({
     }
   }, [isDialogOpen, profile]);
 
-  const handleSave = async () => {
-    if (
-      !accountHolderName.trim() ||
-      !bankName.trim() ||
-      !accountNumber.trim() ||
-      !ifscCode.trim() ||
-      !branch.trim()
-    ) {
-      toast.error("Please fill in all required bank fields");
-      return;
-    }
+  const handleSave = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
 
-    if (accountNumber !== confirmAccountNumber) {
-      toast.error("Account numbers do not match");
+    const accountNumberError = validateBankAccountNumber(accountNumber);
+
+    const nextErrors = buildFieldErrors<BankField>([
+      { field: "accountHolderName", error: validateAccountHolderName(accountHolderName) },
+      { field: "bankName", error: validateBankName(bankName) },
+      { field: "accountNumber", error: accountNumberError },
+      {
+        field: "confirmAccountNumber",
+        error: validateConfirmBankAccountNumber(confirmAccountNumber, accountNumber),
+      },
+      { field: "ifscCode", error: validateIfscCode(ifscCode) },
+      { field: "branch", error: validateBankBranch(branch) },
+      { field: "upiId", error: validateUpiId(upiId) },
+    ]);
+
+    setFormErrors(nextErrors);
+
+    if (hasFieldErrors(nextErrors)) {
       return;
     }
 
     setIsSaving(true);
     try {
       const updated = await updateEmployeeBank({
-        accountHolderName,
-        bankName,
+        accountHolderName: accountHolderName.trim(),
+        bankName: bankName.trim(),
         accountNumber,
-        ifscCode,
-        branch,
-        upiId: upiId || undefined,
+        ifscCode: ifscCode.trim().toUpperCase(),
+        branch: branch.trim(),
+        upiId: upiId.trim() || undefined,
       });
       onUpdated(updated);
       setDialogOpen(false);
@@ -175,7 +208,15 @@ export function EmployeeBankCard({
         )}
       </ProfileSectionCard>
 
-      <Dialog open={isDialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog
+        open={isDialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) {
+            clearAllErrors();
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Bank Details</DialogTitle>
@@ -184,93 +225,141 @@ export function EmployeeBankCard({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4 py-2 sm:grid-cols-2">
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="bank-account-holder">Account Holder Name *</Label>
+          <form onSubmit={(event) => void handleSave(event)} className="grid gap-4 py-2 sm:grid-cols-2" noValidate>
+            <FormField
+              className="sm:col-span-2"
+              label="Account Holder Name"
+              htmlFor="bank-account-holder"
+              required
+              error={errors.accountHolderName}
+            >
               <Input
                 id="bank-account-holder"
                 value={accountHolderName}
-                onChange={(e) => setAccountHolderName(e.target.value)}
+                onChange={(e) => {
+                  setAccountHolderName(sanitizeAlphaNameInput(e.target.value));
+                  clearFieldError("accountHolderName");
+                }}
                 disabled={isSaving}
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="bank-name">Bank Name *</Label>
+            </FormField>
+            <FormField
+              label="Bank Name"
+              htmlFor="bank-name"
+              required
+              error={errors.bankName}
+            >
               <Input
                 id="bank-name"
                 value={bankName}
-                onChange={(e) => setBankName(e.target.value)}
+                onChange={(e) => {
+                  setBankName(e.target.value);
+                  clearFieldError("bankName");
+                }}
                 disabled={isSaving}
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="bank-account-number">Account Number *</Label>
+            </FormField>
+            <FormField
+              label="Account Number"
+              htmlFor="bank-account-number"
+              required
+              error={errors.accountNumber}
+            >
               <Input
                 id="bank-account-number"
+                inputMode="numeric"
                 value={accountNumber}
-                onChange={(e) => setAccountNumber(e.target.value)}
+                onChange={(e) => {
+                  setAccountNumber(sanitizeDigitsInput(e.target.value, 18));
+                  clearFieldError("accountNumber");
+                }}
                 disabled={isSaving}
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="bank-confirm-account">Confirm Account Number *</Label>
+            </FormField>
+            <FormField
+              label="Confirm Account Number"
+              htmlFor="bank-confirm-account"
+              required
+              error={errors.confirmAccountNumber}
+            >
               <Input
                 id="bank-confirm-account"
+                inputMode="numeric"
                 value={confirmAccountNumber}
-                onChange={(e) => setConfirmAccountNumber(e.target.value)}
+                onChange={(e) => {
+                  setConfirmAccountNumber(sanitizeDigitsInput(e.target.value, 18));
+                  clearFieldError("confirmAccountNumber");
+                }}
                 disabled={isSaving}
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="bank-ifsc">IFSC Code *</Label>
+            </FormField>
+            <FormField
+              label="IFSC Code"
+              htmlFor="bank-ifsc"
+              required
+              error={errors.ifscCode}
+            >
               <Input
                 id="bank-ifsc"
                 value={ifscCode}
-                onChange={(e) => setIfscCode(e.target.value)}
+                onChange={(e) => {
+                  setIfscCode(sanitizeIfscInput(e.target.value));
+                  clearFieldError("ifscCode");
+                }}
                 disabled={isSaving}
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="bank-branch">Branch *</Label>
+            </FormField>
+            <FormField label="Branch" htmlFor="bank-branch" required error={errors.branch}>
               <Input
                 id="bank-branch"
                 value={branch}
-                onChange={(e) => setBranch(e.target.value)}
+                onChange={(e) => {
+                  setBranch(e.target.value);
+                  clearFieldError("branch");
+                }}
                 disabled={isSaving}
               />
-            </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="bank-upi">UPI ID (optional)</Label>
+            </FormField>
+            <FormField
+              className="sm:col-span-2"
+              label="UPI ID"
+              htmlFor="bank-upi"
+              description="Optional"
+              error={errors.upiId}
+            >
               <Input
                 id="bank-upi"
                 placeholder="name@upi"
                 value={upiId}
-                onChange={(e) => setUpiId(e.target.value)}
+                onChange={(e) => {
+                  setUpiId(e.target.value.trim().toLowerCase());
+                  clearFieldError("upiId");
+                }}
                 disabled={isSaving}
               />
-            </div>
-          </div>
+            </FormField>
 
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setDialogOpen(false)}
-              disabled={isSaving}
-            >
-              Cancel
-            </Button>
-            <Button type="button" onClick={handleSave} disabled={isSaving}>
-              {isSaving ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                "Submit for Verification"
-              )}
-            </Button>
-          </DialogFooter>
+            <DialogFooter className="sm:col-span-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDialogOpen(false)}
+                disabled={isSaving}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSaving}>
+                {isSaving ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  "Submit for Verification"
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </>

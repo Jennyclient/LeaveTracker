@@ -12,6 +12,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { DialogFooter, dialogFlushFooterClass } from "@/components/ui/dialog";
+import { FormField } from "@/components/shared/form-field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -28,6 +29,19 @@ import {
   updateEmployee,
   type ManagerOption,
 } from "@/lib/employees";
+import {
+  buildFieldErrors,
+  PASSWORD_MIN_LENGTH,
+  sanitizeAlphaNameInput,
+  sanitizePhoneInput,
+  validateEmail,
+  validatePassword,
+  validatePersonName,
+  validatePhone,
+  validatePositiveNumber,
+  validateRequired,
+} from "@/lib/form-validation";
+import { useFormErrors } from "@/hooks/use-form-errors";
 import { useAuthStore } from "@/stores/auth-store";
 import type {
   Employee,
@@ -211,7 +225,7 @@ function StepIndicator({
 
 function SectionHeader({ title }: { title: string }) {
   return (
-    <div className="space-y-1">
+    <div className="space-y-2">
       <p className="text-xs font-semibold uppercase tracking-wider text-foreground/75">
         {title}
       </p>
@@ -249,6 +263,7 @@ export function EmployeeFormWizard({
   const [isLoadingManagers, setIsLoadingManagers] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const { errors: fieldErrors, setFormErrors, clearFieldError } = useFormErrors<string>();
 
   const currentStepIndex = visibleSteps.findIndex((step) => step.id === currentStep);
   const isFirstStep = currentStepIndex === 0;
@@ -289,33 +304,95 @@ export function EmployeeFormWizard({
 
   const updateField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+    clearFieldError(String(key));
   };
 
   const validateStep = (step: WizardStep): boolean => {
+    let validators: Array<{ field: string; error: string | null | undefined }> = [];
+
     if (step === "personal") {
-      if (!form.name.trim() || !form.email.trim() || !form.contactNo.trim()) {
-        toast.error("Please fill in all required personal fields");
-        return false;
-      }
-      if (mode === "add" && !form.password.trim()) {
-        toast.error("Password is required");
-        return false;
-      }
+      validators = [
+        { field: "name", error: validatePersonName(form.name, "full name") },
+        { field: "email", error: validateEmail(form.email) },
+        { field: "contactNo", error: validatePhone(form.contactNo, "contact number") },
+        {
+          field: "password",
+          error:
+            mode === "add"
+              ? validatePassword(form.password)
+              : form.password.trim()
+                ? validatePassword(form.password)
+                : null,
+        },
+      ];
     }
 
-    if (step === "job" && !form.joiningDate) {
-      toast.error("Joining date is required");
-      return false;
+    if (step === "job") {
+      validators = [
+        {
+          field: "joiningDate",
+          error: validateRequired(form.joiningDate, "Joining date is required"),
+        },
+        {
+          field: "yearsOfExperience",
+          error: validatePositiveNumber(form.yearsOfExperience, "Years of experience", {
+            required: false,
+          }),
+        },
+      ];
     }
 
-    return true;
+    if (step === "salary" && isAdmin) {
+      validators = [
+        { field: "ctc", error: validatePositiveNumber(form.ctc, "CTC", { required: false }) },
+        {
+          field: "basicSalary",
+          error: validatePositiveNumber(form.basicSalary, "Basic salary", { required: false }),
+        },
+        { field: "hra", error: validatePositiveNumber(form.hra, "HRA", { required: false }) },
+        {
+          field: "specialAllowance",
+          error: validatePositiveNumber(form.specialAllowance, "Special allowance", {
+            required: false,
+          }),
+        },
+        {
+          field: "providentFund",
+          error: validatePositiveNumber(form.providentFund, "Provident fund", {
+            required: false,
+          }),
+        },
+        {
+          field: "professionalTax",
+          error: validatePositiveNumber(form.professionalTax, "Professional tax", {
+            required: false,
+          }),
+        },
+      ];
+    }
+
+    const nextErrors = buildFieldErrors(validators);
+    setFormErrors(nextErrors);
+    return !Object.keys(nextErrors).length;
   };
 
   const goToStep = (step: WizardStep) => {
+    setFormErrors({});
     setCurrentStep(step);
   };
 
-  const handleNext = () => {
+  const handleStepSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    if (isLastStep) {
+      void handleSubmit(event);
+      return;
+    }
+
+    handleNext(event);
+  };
+
+  const handleNext = (event?: React.FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+
     if (!validateStep(currentStep)) return;
 
     const nextStep = visibleSteps[currentStepIndex + 1];
@@ -324,6 +401,8 @@ export function EmployeeFormWizard({
     }
   };
 
+  const activeFormId = `${idPrefix}-${currentStep}-form`;
+
   const handleBack = () => {
     const prevStep = visibleSteps[currentStepIndex - 1];
     if (prevStep) {
@@ -331,7 +410,9 @@ export function EmployeeFormWizard({
     }
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (event?: React.FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+
     if (!validateStep(currentStep)) return;
 
     setIsSubmitting(true);
@@ -385,21 +466,37 @@ export function EmployeeFormWizard({
       <div className="max-h-[60vh] overflow-y-auto px-6 py-6">
         <SectionHeader title={stepTitle[currentStep]} />
 
-        <div className="mt-4 space-y-4">
+        <div className="mt-6 space-y-5">
           {currentStep === "personal" && (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor={`${idPrefix}-name`}>Full Name *</Label>
+            <form
+              id={`${idPrefix}-personal-form`}
+              onSubmit={handleStepSubmit}
+              noValidate
+              className="grid gap-5 sm:grid-cols-2"
+            >
+              <FormField
+                className="sm:col-span-2"
+                label="Full Name"
+                htmlFor={`${idPrefix}-name`}
+                required
+                error={fieldErrors.name}
+              >
                 <Input
                   id={`${idPrefix}-name`}
                   placeholder="Enter full name"
                   value={form.name}
-                  onChange={(e) => updateField("name", e.target.value)}
+                  onChange={(e) =>
+                    updateField("name", sanitizeAlphaNameInput(e.target.value))
+                  }
                   disabled={isSubmitting}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor={`${idPrefix}-email`}>Email *</Label>
+              </FormField>
+              <FormField
+                label="Email"
+                htmlFor={`${idPrefix}-email`}
+                required
+                error={fieldErrors.email}
+              >
                 <Input
                   id={`${idPrefix}-email`}
                   type="email"
@@ -408,21 +505,37 @@ export function EmployeeFormWizard({
                   onChange={(e) => updateField("email", e.target.value)}
                   disabled={isSubmitting}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor={`${idPrefix}-contactNo`}>Contact Number *</Label>
+              </FormField>
+              <FormField
+                label="Contact Number"
+                htmlFor={`${idPrefix}-contactNo`}
+                required
+                error={fieldErrors.contactNo}
+              >
                 <Input
                   id={`${idPrefix}-contactNo`}
+                  type="tel"
+                  inputMode="numeric"
                   placeholder="Enter contact number"
                   value={form.contactNo}
-                  onChange={(e) => updateField("contactNo", e.target.value)}
+                  onChange={(e) =>
+                    updateField("contactNo", sanitizePhoneInput(e.target.value))
+                  }
                   disabled={isSubmitting}
                 />
-              </div>
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor={`${idPrefix}-password`}>
-                  {mode === "add" ? "Password *" : "New Password"}
-                </Label>
+              </FormField>
+              <FormField
+                className="sm:col-span-2"
+                label={mode === "add" ? "Password" : "New Password"}
+                htmlFor={`${idPrefix}-password`}
+                required={mode === "add"}
+                error={fieldErrors.password}
+                description={
+                  mode === "edit"
+                    ? "Leave blank to keep the current password."
+                    : `Use at least ${PASSWORD_MIN_LENGTH} characters.`
+                }
+              >
                 <div className="relative">
                   <Input
                     id={`${idPrefix}-password`}
@@ -451,22 +564,25 @@ export function EmployeeFormWizard({
                     )}
                   </button>
                 </div>
-              </div>
-            </div>
+              </FormField>
+            </form>
           )}
 
           {currentStep === "job" && (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Employee ID</Label>
+            <form
+              id={`${idPrefix}-job-form`}
+              onSubmit={handleStepSubmit}
+              noValidate
+              className="grid gap-5 sm:grid-cols-2"
+            >
+              <FormField label="Employee ID">
                 <Input
                   value={mode === "edit" && employee ? employee.employeeId : "Auto-generated"}
                   disabled
                   className="bg-muted/30"
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor={`${idPrefix}-department`}>Department</Label>
+              </FormField>
+              <FormField label="Department" htmlFor={`${idPrefix}-department`}>
                 <Input
                   id={`${idPrefix}-department`}
                   placeholder="Enter department"
@@ -474,9 +590,8 @@ export function EmployeeFormWizard({
                   onChange={(e) => updateField("department", e.target.value)}
                   disabled={isSubmitting}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor={`${idPrefix}-designation`}>Designation</Label>
+              </FormField>
+              <FormField label="Designation" htmlFor={`${idPrefix}-designation`}>
                 <Input
                   id={`${idPrefix}-designation`}
                   placeholder="Enter designation"
@@ -484,15 +599,14 @@ export function EmployeeFormWizard({
                   onChange={(e) => updateField("designation", e.target.value)}
                   disabled={isSubmitting}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label>Manager</Label>
+              </FormField>
+              <FormField label="Manager">
                 <Select
                   value={form.managerId}
                   onValueChange={(value) => updateField("managerId", value)}
                   disabled={isSubmitting || isLoadingManagers}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue
                       placeholder={
                         isLoadingManagers ? "Loading managers..." : "Select manager"
@@ -508,9 +622,13 @@ export function EmployeeFormWizard({
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor={`${idPrefix}-joiningDate`}>Joining Date</Label>
+              </FormField>
+              <FormField
+                label="Joining Date"
+                htmlFor={`${idPrefix}-joiningDate`}
+                required
+                error={fieldErrors.joiningDate}
+              >
                 <Input
                   id={`${idPrefix}-joiningDate`}
                   type="date"
@@ -518,16 +636,13 @@ export function EmployeeFormWizard({
                   onChange={(e) => updateField("joiningDate", e.target.value)}
                   disabled={isSubmitting}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor={`${idPrefix}-yearsOfExperience`}>
-                  Years of Experience
-                  {!isAdmin && (
-                    <span className="ml-1 text-xs font-normal text-foreground/60">
-                      (Admin only)
-                    </span>
-                  )}
-                </Label>
+              </FormField>
+              <FormField
+                label="Years of Experience"
+                htmlFor={`${idPrefix}-yearsOfExperience`}
+                description={!isAdmin ? "Admin only" : undefined}
+                error={fieldErrors.yearsOfExperience}
+              >
                 <Input
                   id={`${idPrefix}-yearsOfExperience`}
                   type="number"
@@ -539,21 +654,20 @@ export function EmployeeFormWizard({
                   disabled={isSubmitting || !isAdmin}
                   className={!isAdmin ? "bg-muted/30" : undefined}
                 />
-              </div>
-              <div className="space-y-2 sm:col-span-2">
-                <Label>Employment Type</Label>
+              </FormField>
+              <FormField label="Employment Type">
                 <RadioGroup
                   value={form.employmentType}
                   onValueChange={(value) =>
                     updateField("employmentType", value as EmploymentType)
                   }
-                  className="flex flex-wrap gap-4"
+                  className="flex flex-wrap gap-4 pt-0.5"
                   disabled={isSubmitting}
                 >
                   <div className="flex items-center gap-2">
                     <RadioGroupItem value="permanent" id={`${idPrefix}-permanent`} />
                     <Label htmlFor={`${idPrefix}-permanent`} className="font-normal">
-                      Permanent
+                      Full Time
                     </Label>
                   </div>
                   <div className="flex items-center gap-2">
@@ -569,9 +683,12 @@ export function EmployeeFormWizard({
                     </Label>
                   </div>
                 </RadioGroup>
-              </div>
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor={`${idPrefix}-workLocation`}>Work Location</Label>
+              </FormField>
+              <FormField
+                className="sm:col-span-2"
+                label="Work Location"
+                htmlFor={`${idPrefix}-workLocation`}
+              >
                 <Input
                   id={`${idPrefix}-workLocation`}
                   placeholder="Enter work location"
@@ -579,14 +696,18 @@ export function EmployeeFormWizard({
                   onChange={(e) => updateField("workLocation", e.target.value)}
                   disabled={isSubmitting}
                 />
-              </div>
-            </div>
+              </FormField>
+            </form>
           )}
 
           {currentStep === "salary" && isAdmin && (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor={`${idPrefix}-ctc`}>CTC</Label>
+            <form
+              id={`${idPrefix}-salary-form`}
+              onSubmit={handleStepSubmit}
+              noValidate
+              className="grid gap-5 sm:grid-cols-2"
+            >
+              <FormField label="CTC" htmlFor={`${idPrefix}-ctc`} error={fieldErrors.ctc}>
                 <Input
                   id={`${idPrefix}-ctc`}
                   type="number"
@@ -596,9 +717,12 @@ export function EmployeeFormWizard({
                   onChange={(e) => updateField("ctc", e.target.value)}
                   disabled={isSubmitting}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor={`${idPrefix}-basicSalary`}>Basic Salary</Label>
+              </FormField>
+              <FormField
+                label="Basic Salary"
+                htmlFor={`${idPrefix}-basicSalary`}
+                error={fieldErrors.basicSalary}
+              >
                 <Input
                   id={`${idPrefix}-basicSalary`}
                   type="number"
@@ -607,9 +731,8 @@ export function EmployeeFormWizard({
                   onChange={(e) => updateField("basicSalary", e.target.value)}
                   disabled={isSubmitting}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor={`${idPrefix}-hra`}>HRA</Label>
+              </FormField>
+              <FormField label="HRA" htmlFor={`${idPrefix}-hra`} error={fieldErrors.hra}>
                 <Input
                   id={`${idPrefix}-hra`}
                   type="number"
@@ -618,9 +741,12 @@ export function EmployeeFormWizard({
                   onChange={(e) => updateField("hra", e.target.value)}
                   disabled={isSubmitting}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor={`${idPrefix}-specialAllowance`}>Special Allowance</Label>
+              </FormField>
+              <FormField
+                label="Special Allowance"
+                htmlFor={`${idPrefix}-specialAllowance`}
+                error={fieldErrors.specialAllowance}
+              >
                 <Input
                   id={`${idPrefix}-specialAllowance`}
                   type="number"
@@ -629,9 +755,12 @@ export function EmployeeFormWizard({
                   onChange={(e) => updateField("specialAllowance", e.target.value)}
                   disabled={isSubmitting}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor={`${idPrefix}-providentFund`}>Provident Fund</Label>
+              </FormField>
+              <FormField
+                label="Provident Fund"
+                htmlFor={`${idPrefix}-providentFund`}
+                error={fieldErrors.providentFund}
+              >
                 <Input
                   id={`${idPrefix}-providentFund`}
                   type="number"
@@ -640,9 +769,12 @@ export function EmployeeFormWizard({
                   onChange={(e) => updateField("providentFund", e.target.value)}
                   disabled={isSubmitting}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor={`${idPrefix}-professionalTax`}>Professional Tax</Label>
+              </FormField>
+              <FormField
+                label="Professional Tax"
+                htmlFor={`${idPrefix}-professionalTax`}
+                error={fieldErrors.professionalTax}
+              >
                 <Input
                   id={`${idPrefix}-professionalTax`}
                   type="number"
@@ -651,11 +783,11 @@ export function EmployeeFormWizard({
                   onChange={(e) => updateField("professionalTax", e.target.value)}
                   disabled={isSubmitting}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor={`${idPrefix}-salaryEffectiveFrom`}>
-                  Salary Effective From
-                </Label>
+              </FormField>
+              <FormField
+                label="Salary Effective From"
+                htmlFor={`${idPrefix}-salaryEffectiveFrom`}
+              >
                 <Input
                   id={`${idPrefix}-salaryEffectiveFrom`}
                   type="date"
@@ -663,15 +795,14 @@ export function EmployeeFormWizard({
                   onChange={(e) => updateField("salaryEffectiveFrom", e.target.value)}
                   disabled={isSubmitting}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label>Payroll Type</Label>
+              </FormField>
+              <FormField label="Payroll Type">
                 <RadioGroup
                   value={form.payrollType}
                   onValueChange={(value) =>
                     updateField("payrollType", value as PayrollType)
                   }
-                  className="flex gap-4"
+                  className="flex gap-4 pt-0.5"
                   disabled={isSubmitting}
                 >
                   <div className="flex items-center gap-2">
@@ -687,8 +818,8 @@ export function EmployeeFormWizard({
                     </Label>
                   </div>
                 </RadioGroup>
-              </div>
-            </div>
+              </FormField>
+            </form>
           )}
         </div>
       </div>
@@ -717,7 +848,11 @@ export function EmployeeFormWizard({
             Cancel
           </Button>
           {isLastStep ? (
-            <Button type="button" onClick={handleSubmit} disabled={isSubmitting}>
+            <Button
+              type="submit"
+              form={activeFormId}
+              disabled={isSubmitting}
+            >
               {isSubmitting ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />
@@ -728,7 +863,11 @@ export function EmployeeFormWizard({
               )}
             </Button>
           ) : (
-            <Button type="button" onClick={handleNext} disabled={isSubmitting}>
+            <Button
+              type="submit"
+              form={activeFormId}
+              disabled={isSubmitting}
+            >
               Next
               <ArrowRight className="size-4" />
             </Button>

@@ -7,6 +7,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   FileText,
+  IndianRupee,
   LayoutDashboard,
   PlusCircle,
   Settings,
@@ -33,6 +34,7 @@ const iconMap: Record<string, LucideIcon> = {
   Calendar,
   PlusCircle,
   User,
+  IndianRupee,
 };
 
 export function getNavIcon(name: string): LucideIcon {

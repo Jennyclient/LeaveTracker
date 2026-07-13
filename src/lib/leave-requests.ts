@@ -14,10 +14,18 @@ interface ApiLeaveRequest {
   endDate: string;
   days?: number;
   noOfDays?: number;
+  requestedLeaveDays?: number;
+  currentLeaveBalance?: number;
+  totalAvailableLeaves?: number;
+  availableLeaves?: number;
+  allocatedLeaves?: number;
   status: ApiLeaveStatus | LeaveStatus | string;
   managerId?: string;
   managerName?: string;
   reason?: string;
+  emergencyContactNo?: string;
+  location?: string;
+  rejectionReason?: string;
   attachmentDoc?: string;
   createdAt?: string;
   appliedDate?: string;
@@ -102,11 +110,20 @@ function mapApiLeaveRequestToLeaveRequest(api: ApiLeaveRequest): LeaveRequest {
     leaveTypeId,
     startDate: api.startDate,
     endDate: api.endDate,
-    days: api.days ?? api.noOfDays ?? calculatedDays,
+    days: api.days ?? api.noOfDays ?? api.requestedLeaveDays ?? calculatedDays,
+    requestedLeaveDays:
+      api.requestedLeaveDays ?? api.days ?? api.noOfDays ?? calculatedDays,
+    currentLeaveBalance:
+      api.currentLeaveBalance ?? api.availableLeaves,
+    totalAvailableLeaves:
+      api.totalAvailableLeaves ?? api.allocatedLeaves,
     status: mapStatus(api.status),
     manager: api.managerName ?? "—",
     managerId: api.managerId ?? "",
     reason: api.reason ?? "",
+    emergencyContactNo: api.emergencyContactNo,
+    location: api.location,
+    rejectionReason: api.rejectionReason,
     appliedDate: api.appliedDate ?? api.createdAt ?? api.startDate,
     halfDay: api.halfDay,
     halfDayPeriod: api.halfDayPeriod,
@@ -180,12 +197,16 @@ export async function updateLeaveRequestAction(
     action: LeaveRequestAction;
     employeeId: string;
     leaveType: string;
+    rejectionReason?: string;
   }
 ): Promise<void> {
   const payload = {
     action: input.action,
     employeeId: input.employeeId,
     leaveType: input.leaveType,
+    ...(input.action === "REJECT" && input.rejectionReason
+      ? { rejectionReason: input.rejectionReason.trim() }
+      : {}),
   };
 
   const { data } = await API.put<LeaveRequestActionResponse>(
@@ -229,6 +250,8 @@ export interface CreateEmployeeLeaveRequestInput {
   halfDay: boolean;
   halfDayPeriod?: HalfDayPeriod;
   reason: string;
+  emergencyContactNo: string;
+  location?: string;
   attachmentDoc?: string;
 }
 
@@ -271,6 +294,8 @@ export async function createEmployeeLeaveRequest(
       ? { halfDayPeriod: input.halfDayPeriod }
       : {}),
     reason: input.reason.trim(),
+    emergencyContactNo: input.emergencyContactNo.trim(),
+    ...(input.location?.trim() ? { location: input.location.trim() } : {}),
     ...(input.attachmentDoc ? { attachmentDoc: input.attachmentDoc } : {}),
   };
 

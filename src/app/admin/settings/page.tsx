@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/layout/page-header";
+import { FormField } from "@/components/shared/form-field";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -16,6 +16,12 @@ import {
   getAdminSettings,
   updateAdminSettings,
 } from "@/lib/admin-settings";
+import { useFormErrors } from "@/hooks/use-form-errors";
+import {
+  buildFieldErrors,
+  hasFieldErrors,
+  validateRequired,
+} from "@/lib/form-validation";
 import type { AdminSettings } from "@/types";
 
 const DEFAULT_LEAVE_SETTINGS = {
@@ -33,6 +39,8 @@ type SettingsFormState = {
   autoApproveSickLeave: boolean;
   emailNotification: boolean;
 };
+
+type SettingsField = "organizationName" | "timezone" | "fiscalYearStart";
 
 const EMPTY_FORM: SettingsFormState = {
   settingsId: null,
@@ -87,6 +95,7 @@ export default function AdminSettingsPage() {
   const [form, setForm] = useState<SettingsFormState>(EMPTY_FORM);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const { errors, setFormErrors, clearFieldError } = useFormErrors<SettingsField>();
 
   useEffect(() => {
     let cancelled = false;
@@ -120,9 +129,24 @@ export default function AdminSettingsPage() {
     };
   }, []);
 
-  const handleSave = async () => {
-    if (!form.organizationName.trim() || !form.timezone.trim() || !form.fiscalYearStart) {
-      toast.error("Organization name, timezone and fiscal year start are required");
+  const handleSave = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const nextErrors = buildFieldErrors<SettingsField>([
+      {
+        field: "organizationName",
+        error: validateRequired(form.organizationName, "Company name is required"),
+      },
+      { field: "timezone", error: validateRequired(form.timezone, "Timezone is required") },
+      {
+        field: "fiscalYearStart",
+        error: validateRequired(form.fiscalYearStart, "Fiscal year start is required"),
+      },
+    ]);
+
+    setFormErrors(nextErrors);
+
+    if (hasFieldErrors(nextErrors)) {
       return;
     }
 
@@ -166,6 +190,7 @@ export default function AdminSettingsPage() {
         <SettingsSkeleton />
       ) : (
         <>
+          <form onSubmit={(event) => void handleSave(event)} className="space-y-6" noValidate>
           <div className="grid gap-6 lg:grid-cols-2">
             <Card>
               <CardHeader>
@@ -173,41 +198,59 @@ export default function AdminSettingsPage() {
                 <CardDescription>Basic organization information</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Company Name</Label>
+                <FormField
+                  label="Company Name"
+                  htmlFor="organizationName"
+                  required
+                  error={errors.organizationName}
+                >
                   <Input
+                    id="organizationName"
                     value={form.organizationName}
-                    onChange={(event) =>
+                    onChange={(event) => {
                       setForm((current) => ({
                         ...current,
                         organizationName: event.target.value,
-                      }))
-                    }
+                      }));
+                      clearFieldError("organizationName");
+                    }}
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label>Timezone</Label>
+                </FormField>
+                <FormField
+                  label="Timezone"
+                  htmlFor="timezone"
+                  required
+                  error={errors.timezone}
+                >
                   <Input
+                    id="timezone"
                     value={form.timezone}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, timezone: event.target.value }))
-                    }
+                    onChange={(event) => {
+                      setForm((current) => ({ ...current, timezone: event.target.value }));
+                      clearFieldError("timezone");
+                    }}
                     placeholder="Asia/Kolkata"
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label>Fiscal Year Start</Label>
+                </FormField>
+                <FormField
+                  label="Fiscal Year Start"
+                  htmlFor="fiscalYearStart"
+                  required
+                  error={errors.fiscalYearStart}
+                >
                   <Input
+                    id="fiscalYearStart"
                     type="date"
                     value={form.fiscalYearStart}
-                    onChange={(event) =>
+                    onChange={(event) => {
                       setForm((current) => ({
                         ...current,
                         fiscalYearStart: event.target.value,
-                      }))
-                    }
+                      }));
+                      clearFieldError("fiscalYearStart");
+                    }}
                   />
-                </div>
+                </FormField>
               </CardContent>
             </Card>
 
@@ -260,10 +303,11 @@ export default function AdminSettingsPage() {
           </div>
 
           <div className="flex justify-end">
-            <Button onClick={() => void handleSave()} disabled={isSaving}>
+            <Button type="submit" disabled={isSaving}>
               {isSaving ? "Saving..." : "Save Changes"}
             </Button>
           </div>
+          </form>
         </>
       )}
     </div>

@@ -35,6 +35,7 @@ export const adminNavigation: NavEntry[] = [
     ],
   },
   { title: "Holiday Management", href: "/admin/holidays", icon: "CalendarDays" },
+  { title: "Salary & Payroll", href: "/admin/payroll", icon: "IndianRupee" },
   { title: "Settings", href: "/admin/settings", icon: "Settings" },
 ];
 
@@ -51,6 +52,7 @@ export const employeeNavigation: NavLink[] = [
   { title: "My Leaves", href: "/employee/my-leaves", icon: "ClipboardList" },
   { title: "Leave Balance", href: "/employee/leave-balance", icon: "Wallet" },
   { title: "Holiday Calendar", href: "/employee/holiday-calendar", icon: "CalendarDays" },
+  { title: "Payslips", href: "/employee/payslips", icon: "IndianRupee" },
   { title: "Profile", href: "/employee/profile", icon: "User" },
 ];
 

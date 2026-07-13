@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowUpDown, Eye, FileText } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
+import { FormField } from "@/components/shared/form-field";
 import {
   DateRangePicker,
   type DateRangeValue,
@@ -15,10 +16,17 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { useFormErrors } from "@/hooks/use-form-errors";
+import {
+  buildFieldErrors,
+  hasFieldErrors,
+  validateRequired,
+} from "@/lib/form-validation";
 import {
   Select,
   SelectContent,
@@ -35,7 +43,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
 import { formatDate, formatHalfDayPeriod } from "@/lib/format";
+import { formatLeaveDayCount } from "@/lib/leave-days";
 import {
   getAdminLeaveRequests,
   updateLeaveRequestAction,
@@ -44,11 +54,24 @@ import {
 import { toast } from "sonner";
 import type { LeaveRequest } from "@/types";
 
+function formatBalance(value: number | undefined) {
+  if (value === undefined || Number.isNaN(value)) {
+    return "—";
+  }
+
+  return formatLeaveDayCount(value);
+}
+
 export default function LeaveRequestsPage() {
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<LeaveRequest | null>(null);
+  const [rejectDialogRequest, setRejectDialogRequest] =
+    useState<LeaveRequest | null>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const { errors, setFormErrors, clearFieldError, clearAllErrors } =
+    useFormErrors<"rejectionReason">();
   const [employeeNameFilter, setEmployeeNameFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
@@ -102,10 +125,16 @@ export default function LeaveRequestsPage() {
 
   const handleAction = async (
     req: LeaveRequest,
-    action: LeaveRequestAction
+    action: LeaveRequestAction,
+    rejectionReasonValue?: string
   ) => {
     if (!req.employeeId || !req.leaveTypeId) {
       toast.error("Missing employee or leave type details for this request");
+      return;
+    }
+
+    if (action === "REJECT" && !rejectionReasonValue?.trim()) {
+      toast.error("Rejection reason is required");
       return;
     }
 
@@ -115,10 +144,13 @@ export default function LeaveRequestsPage() {
         action,
         employeeId: req.employeeId,
         leaveType: req.leaveTypeId,
+        rejectionReason: rejectionReasonValue,
       });
 
       await loadLeaveRequests();
       setSelectedRequest(null);
+      setRejectDialogRequest(null);
+      setRejectionReason("");
 
       toast.success(
         `Leave request for ${req.employeeName} ${action === "APPROVE" ? "approved" : "rejected"}`
@@ -130,6 +162,43 @@ export default function LeaveRequestsPage() {
     } finally {
       setActioningId(null);
     }
+  };
+
+  const openRequestDetails = (req: LeaveRequest) => {
+    setSelectedRequest(req);
+  };
+
+  const closeRequestDetails = () => {
+    setSelectedRequest(null);
+  };
+
+  const openRejectDialog = (req: LeaveRequest) => {
+    setRejectDialogRequest(req);
+    setRejectionReason("");
+    clearAllErrors();
+  };
+
+  const handleConfirmReject = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!rejectDialogRequest) {
+      return;
+    }
+
+    const nextErrors = buildFieldErrors<"rejectionReason">([
+      {
+        field: "rejectionReason",
+        error: validateRequired(rejectionReason, "Please provide a rejection reason"),
+      },
+    ]);
+
+    setFormErrors(nextErrors);
+
+    if (hasFieldErrors(nextErrors)) {
+      return;
+    }
+
+    await handleAction(rejectDialogRequest, "REJECT", rejectionReason);
   };
 
   return (
@@ -167,71 +236,77 @@ export default function LeaveRequestsPage() {
             <TableSkeleton rows={6} />
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/30 hover:bg-muted/30">
-                <TableHead>Employee</TableHead>
-                <TableHead>Leave Type</TableHead>
-                <TableHead>No. of Days</TableHead>
-                <TableHead>Manager</TableHead>
-                <TableHead>
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-1 font-medium"
-                    onClick={() =>
-                      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"))
-                    }
-                  >
-                    Start Date
-                    <ArrowUpDown className="size-3.5 text-muted-foreground" />
-                  </button>
-                </TableHead>
-                <TableHead>End Date</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 ? (
-                <TableEmptyRow colSpan={8} message="No leave requests found" />
-              ) : (
-                filtered.map((req) => (
-                  <TableRow key={req.id} className="hover:bg-muted/20">
-                    <TableCell className="font-medium">{req.employeeName}</TableCell>
-                    <TableCell>{req.leaveType}</TableCell>
-                    <TableCell>{req.days}</TableCell>
-                    <TableCell>{req.manager}</TableCell>
-                    <TableCell>{formatDate(req.startDate)}</TableCell>
-                    <TableCell>{formatDate(req.endDate)}</TableCell>
-                    <TableCell>
-                      <StatusBadge status={req.status} />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => setSelectedRequest(req)}
-                        >
-                          <Eye className="size-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/30 hover:bg-muted/30">
+                  <TableHead>Employee</TableHead>
+                  <TableHead>Leave Type</TableHead>
+                  <TableHead>Available Leaves</TableHead>
+                  <TableHead>Requested Days</TableHead>
+                  <TableHead>Manager</TableHead>
+                  <TableHead>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 font-medium"
+                      onClick={() =>
+                        setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"))
+                      }
+                    >
+                      Start Date
+                      <ArrowUpDown className="size-3.5 text-muted-foreground" />
+                    </button>
+                  </TableHead>
+                  <TableHead>End Date</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.length === 0 ? (
+                  <TableEmptyRow colSpan={9} message="No leave requests found" />
+                ) : (
+                  filtered.map((req) => (
+                    <TableRow key={req.id} className="hover:bg-muted/20">
+                      <TableCell className="font-medium">{req.employeeName}</TableCell>
+                      <TableCell>{req.leaveType}</TableCell>
+                      <TableCell>{formatBalance(req.currentLeaveBalance)}</TableCell>
+                      <TableCell>
+                        {formatBalance(req.requestedLeaveDays ?? req.days)}
+                      </TableCell>
+                      <TableCell>{req.manager}</TableCell>
+                      <TableCell>{formatDate(req.startDate)}</TableCell>
+                      <TableCell>{formatDate(req.endDate)}</TableCell>
+                      <TableCell>
+                        <StatusBadge status={req.status} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => openRequestDetails(req)}
+                          >
+                            <Eye className="size-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         )}
       </div>
 
       <Dialog
         open={selectedRequest !== null}
         onOpenChange={(open) => {
-          if (!open) setSelectedRequest(null);
+          if (!open) closeRequestDetails();
         }}
       >
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Leave Request Details</DialogTitle>
             <DialogDescription>
@@ -290,9 +365,43 @@ export default function LeaveRequestsPage() {
                 </div>
                 <div>
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    No. of Days
+                    Current Leave Balance
                   </p>
-                  <p className="mt-1 font-medium">{selectedRequest.days}</p>
+                  <p className="mt-1 font-medium">
+                    {formatBalance(selectedRequest.currentLeaveBalance)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Requested Leave Days
+                  </p>
+                  <p className="mt-1 font-medium">
+                    {formatBalance(
+                      selectedRequest.requestedLeaveDays ?? selectedRequest.days
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Total Available Leaves
+                  </p>
+                  <p className="mt-1 font-medium">
+                    {formatBalance(selectedRequest.totalAvailableLeaves)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Emergency Contact
+                  </p>
+                  <p className="mt-1 font-medium">
+                    {selectedRequest.emergencyContactNo || "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Location
+                  </p>
+                  <p className="mt-1 font-medium">{selectedRequest.location || "—"}</p>
                 </div>
                 <div>
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -320,6 +429,17 @@ export default function LeaveRequestsPage() {
                 </p>
               </div>
 
+              {selectedRequest.status === "rejected" && (
+                <div className="rounded-lg border border-red-200 bg-red-50/50 p-3 dark:border-red-900/40 dark:bg-red-950/20">
+                  <p className="text-xs uppercase tracking-wide text-red-700 dark:text-red-300">
+                    Rejection Reason
+                  </p>
+                  <p className="mt-2 text-sm leading-relaxed text-red-900 dark:text-red-100">
+                    {selectedRequest.rejectionReason?.trim() || "No rejection reason recorded"}
+                  </p>
+                </div>
+              )}
+
               {selectedRequest.attachmentDoc && (
                 <div className="rounded-lg border p-3">
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -343,7 +463,7 @@ export default function LeaveRequestsPage() {
                     variant="outline"
                     className="text-red-600 hover:text-red-700"
                     disabled={actioningId === selectedRequest.id}
-                    onClick={() => void handleAction(selectedRequest, "REJECT")}
+                    onClick={() => openRejectDialog(selectedRequest)}
                   >
                     Reject
                   </Button>
@@ -357,6 +477,56 @@ export default function LeaveRequestsPage() {
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={rejectDialogRequest !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRejectDialogRequest(null);
+            setRejectionReason("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reject Leave Request</DialogTitle>
+            <DialogDescription>
+              {rejectDialogRequest
+                ? `Provide a reason for rejecting ${rejectDialogRequest.employeeName}'s leave request.`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={(event) => void handleConfirmReject(event)} noValidate>
+            <FormField
+              label="Rejection Reason"
+              htmlFor="rejectionReason"
+              required
+              error={errors.rejectionReason}
+            >
+              <Textarea
+                id="rejectionReason"
+                placeholder="Explain why this leave request is being rejected..."
+                rows={4}
+                value={rejectionReason}
+                onChange={(e) => {
+                  setRejectionReason(e.target.value);
+                  clearFieldError("rejectionReason");
+                }}
+                disabled={actioningId === rejectDialogRequest?.id}
+              />
+            </FormField>
+            <DialogFooter showCloseButton>
+              <Button
+                type="submit"
+                variant="destructive"
+                disabled={actioningId === rejectDialogRequest?.id}
+              >
+                Reject Request
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

@@ -18,11 +18,12 @@ import {
 import { toast } from "sonner";
 
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { FormField } from "@/components/shared/form-field";
 import { Button } from "@/components/ui/button";
+import { useFormErrors } from "@/hooks/use-form-errors";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -31,9 +32,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { LOGIN_PORTAL_OPTIONS } from "@/lib/auth";
+import {
+  buildFieldErrors,
+  hasFieldErrors,
+  PASSWORD_MIN_LENGTH,
+  validateEmail,
+  validatePassword,
+  validateSelect,
+} from "@/lib/form-validation";
 import { getDefaultDashboardPath } from "@/lib/navigation";
 import { useAuthStore } from "@/stores/auth-store";
 import type { LoginPortal } from "@/types";
+
+type LoginField = "portal" | "email" | "password";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -44,6 +55,7 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const passwordInputRef = useRef<HTMLInputElement>(null);
+  const { errors, setFormErrors, clearFieldError } = useFormErrors<LoginField>();
 
   const getPasswordValue = () =>
     passwordInputRef.current?.value ?? password;
@@ -62,23 +74,25 @@ export default function LoginPage() {
     }
   }, [hasHydrated, isLoggedIn, user, router]);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-
-    if (!portal) {
-      toast.error("Please select a portal");
-      return;
-    }
 
     const passwordValue = getPasswordValue();
 
-    if (!email.trim() || !passwordValue.trim()) {
-      toast.error("Please enter your email and password");
+    const nextErrors = buildFieldErrors<LoginField>([
+      { field: "portal", error: validateSelect(portal, "Please select a portal") },
+      { field: "email", error: validateEmail(email) },
+      { field: "password", error: validatePassword(passwordValue) },
+    ]);
+
+    setFormErrors(nextErrors);
+
+    if (hasFieldErrors(nextErrors)) {
       return;
     }
 
     try {
-      const loggedInUser = await login(email, passwordValue, portal);
+      const loggedInUser = await login(email, passwordValue, portal as LoginPortal);
       toast.success("Signed in successfully");
       router.push(getDefaultDashboardPath(loggedInUser));
     } catch (error) {
@@ -144,13 +158,16 @@ export default function LoginPage() {
             <CardDescription>Sign in to your LeaveFlow account</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleLogin} className="space-y-4" autoComplete="off">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="portal">Portal</Label>
-                </div>
-                <Select value={portal} onValueChange={(v) => setPortal(v as LoginPortal)}>
-                  <SelectTrigger id="portal" disabled={isLoading}>
+            <form onSubmit={handleLogin} className="space-y-5" noValidate autoComplete="off">
+              <FormField label="Portal" htmlFor="portal" required error={errors.portal}>
+                <Select
+                  value={portal}
+                  onValueChange={(value) => {
+                    setPortal(value as LoginPortal);
+                    clearFieldError("portal");
+                  }}
+                >
+                  <SelectTrigger id="portal" className="w-full" disabled={isLoading}>
                     <SelectValue placeholder="Select portal" />
                   </SelectTrigger>
                   <SelectContent>
@@ -168,31 +185,44 @@ export default function LoginPage() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
+              </FormField>
 
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+              <FormField label="Email" htmlFor="email" required error={errors.email}>
                 <Input
                   id="email"
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    clearFieldError("email");
+                  }}
                   placeholder="Enter your email address"
                   autoComplete="username"
                   disabled={isLoading}
                 />
-              </div>
+              </FormField>
 
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+              <FormField
+                label="Password"
+                htmlFor="password"
+                required
+                error={errors.password}
+                description={`Use at least ${PASSWORD_MIN_LENGTH} characters.`}
+              >
                 <div className="relative">
                   <Input
                     ref={passwordInputRef}
                     id="password"
                     type={showPassword ? "text" : "password"}
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    onInput={(e) => setPassword(e.currentTarget.value)}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      clearFieldError("password");
+                    }}
+                    onInput={(e) => {
+                      setPassword(e.currentTarget.value);
+                      clearFieldError("password");
+                    }}
                     placeholder="Enter your password"
                     autoComplete="current-password"
                     disabled={isLoading}
@@ -215,7 +245,7 @@ export default function LoginPage() {
                     </span>
                   </button>
                 </div>
-              </div>
+              </FormField>
 
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -225,12 +255,12 @@ export default function LoginPage() {
                     onCheckedChange={(checked) => setRememberMe(checked === true)}
                     disabled={isLoading}
                   />
-                  <Label
+                  <label
                     htmlFor="remember-me"
                     className="cursor-pointer text-sm font-normal text-muted-foreground"
                   >
                     Remember me
-                  </Label>
+                  </label>
                 </div>
                 <Link
                   href="/login"

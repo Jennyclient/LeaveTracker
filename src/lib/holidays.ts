@@ -161,3 +161,41 @@ export async function deleteHoliday(id: string): Promise<void> {
     throw new Error(data.message ?? "Failed to delete holiday");
   }
 }
+
+export interface HolidayImportFailure {
+  rowNumber: number;
+  holidayName: string;
+  date: string;
+  error: string;
+}
+
+export interface HolidayImportResult {
+  created: number;
+  failed: HolidayImportFailure[];
+}
+
+export async function importHolidays(
+  inputs: HolidayInput[],
+  rowNumbers: number[]
+): Promise<HolidayImportResult> {
+  const result: HolidayImportResult = { created: 0, failed: [] };
+
+  for (let index = 0; index < inputs.length; index += 1) {
+    const input = inputs[index];
+    const rowNumber = rowNumbers[index];
+
+    try {
+      await createHoliday(input);
+      result.created += 1;
+    } catch (error) {
+      result.failed.push({
+        rowNumber,
+        holidayName: input.holidayName,
+        date: input.date,
+        error: error instanceof Error ? error.message : "Failed to import holiday",
+      });
+    }
+  }
+
+  return result;
+}

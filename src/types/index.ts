@@ -83,6 +83,10 @@ export type EmploymentType = "permanent" | "contract" | "intern";
 
 export type PayrollType = "monthly" | "weekly";
 
+export type PayrollDisbursementStatus = "pending" | "approved" | "disbursed";
+
+export type PayrollPayslipAction = "APPROVE" | "DISBURSE" | "REVERT";
+
 export interface EmployeeSkill {
   name: string;
   proficiency: number;
@@ -169,10 +173,16 @@ export interface LeaveRequest {
   startDate: string;
   endDate: string;
   days: number;
+  requestedLeaveDays?: number;
+  currentLeaveBalance?: number;
+  totalAvailableLeaves?: number;
   status: LeaveStatus;
   manager: string;
   managerId: string;
   reason: string;
+  emergencyContactNo?: string;
+  location?: string;
+  rejectionReason?: string;
   appliedDate: string;
   halfDay?: boolean;
   halfDayPeriod?: HalfDayPeriod;
@@ -250,6 +260,41 @@ export interface AdminSettings {
     autoApproveSickLeave: boolean;
     emailNotification: boolean;
   };
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface PayslipEarnings {
+  basicSalary: number;
+  hra: number;
+  specialAllowance: number;
+  grossPay: number;
+}
+
+export interface PayslipDeductions {
+  providentFund: number;
+  professionalTax: number;
+  totalDeductions: number;
+}
+
+export interface Payslip {
+  id: string;
+  employeeId: string;
+  employeeUserId: string;
+  employeeName: string;
+  payrollMonth: string;
+  periodStart: string;
+  periodEnd: string;
+  earnings: PayslipEarnings;
+  deductions: PayslipDeductions;
+  netPay: number;
+  annualCtc?: number;
+  payrollType: PayrollType;
+  disbursementStatus: PayrollDisbursementStatus;
+  notes?: string | null;
+  approvedAt?: string | null;
+  disbursedAt?: string | null;
+  isPublished: boolean;
   createdAt?: string;
   updatedAt?: string;
 }

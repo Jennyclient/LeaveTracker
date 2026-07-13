@@ -62,5 +62,9 @@ export function formatLeaveDayCount(days: number): string {
     return "1 day";
   }
 
+  if (Number.isInteger(days)) {
+    return `${days} days`;
+  }
+
   return `${days} days`;
 }

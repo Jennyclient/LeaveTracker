@@ -215,10 +215,12 @@ function EmployeeModalView({
           <ReadOnlyField
             label="Employment Type"
             value={
-              current.employmentType
-                ? current.employmentType.charAt(0).toUpperCase() +
-                  current.employmentType.slice(1)
-                : undefined
+              current.employmentType === "permanent"
+                ? "Full Time"
+                : current.employmentType
+                  ? current.employmentType.charAt(0).toUpperCase() +
+                    current.employmentType.slice(1)
+                  : undefined
             }
           />
           <ReadOnlyField label="Work Location" value={current.workLocation} />
