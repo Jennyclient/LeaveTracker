@@ -1,11 +1,52 @@
 import API from "@/lib/api";
 import type { ApiRole } from "@/lib/auth";
 import { encrypt } from "@/lib/encrypt";
-import type { Employee } from "@/types";
+import {
+  mapApiCertifications,
+  mapApiSkills,
+  mapCertificationsToApi,
+  mapSkillsToApi,
+  type ApiEmployeeCertification,
+  type ApiEmployeeSkill,
+} from "@/lib/employee-skills";
+import type {
+  Employee,
+  EmployeeBankDetails,
+  EmployeeCertification,
+  EmployeeSalary,
+  EmployeeSkill,
+  EmploymentType,
+  PayrollType,
+  ProfileApprovalStatus,
+} from "@/types";
 
 export interface ApiManagerRef {
   id: string;
   name: string;
+}
+
+type ApiEmploymentType = "PERMANENT" | "CONTRACT" | "INTERN";
+type ApiPayrollType = "MONTHLY" | "WEEKLY";
+type ApiProfileApprovalStatus = "NOT_SUBMITTED" | "PENDING" | "APPROVED" | "REJECTED";
+
+interface ApiEmployeeSalary {
+  ctc?: number;
+  basicSalary?: number;
+  hra?: number;
+  specialAllowance?: number;
+  providentFund?: number;
+  professionalTax?: number;
+  effectiveFrom?: string;
+  payrollType?: ApiPayrollType;
+}
+
+interface ApiEmployeeBank {
+  accountHolderName?: string;
+  bankName?: string;
+  accountNumber?: string;
+  ifscCode?: string;
+  branch?: string;
+  upiId?: string;
 }
 
 export interface ApiEmployee {
@@ -16,6 +57,7 @@ export interface ApiEmployee {
   contactNo?: string;
   joiningDate: string;
   designation?: string | null;
+  department?: string | null;
   role: ApiRole;
   manager?: ApiManagerRef | null;
   managerId?: string | null;
@@ -24,6 +66,16 @@ export interface ApiEmployee {
   updatedAt?: string;
   leavePolicy?: string | null;
   leavePolicyId?: string | null;
+  yearsOfExperience?: number;
+  employmentType?: ApiEmploymentType;
+  workLocation?: string | null;
+  salary?: ApiEmployeeSalary;
+  bank?: ApiEmployeeBank;
+  bankStatus?: ApiProfileApprovalStatus;
+  skills?: ApiEmployeeSkill[];
+  skillsStatus?: ApiProfileApprovalStatus;
+  primarySkill?: string | null;
+  certifications?: string | ApiEmployeeCertification[] | null;
 }
 
 export interface GetEmployeesResponse {
@@ -51,7 +103,16 @@ export interface CreateEmployeeInput {
   contactNo: string;
   joiningDate: string;
   designation?: string;
+  department?: string;
   managerId?: string;
+  yearsOfExperience?: number;
+  employmentType?: EmploymentType;
+  workLocation?: string;
+  salary?: EmployeeSalary;
+  bank?: EmployeeBankDetails;
+  skills?: EmployeeSkill[];
+  primarySkill?: string;
+  certifications?: EmployeeCertification[];
 }
 
 export interface UpdateEmployeeInput {
@@ -61,7 +122,16 @@ export interface UpdateEmployeeInput {
   contactNo?: string;
   joiningDate?: string;
   designation?: string;
+  department?: string;
   managerId?: string | null;
+  yearsOfExperience?: number;
+  employmentType?: EmploymentType;
+  workLocation?: string;
+  salary?: EmployeeSalary;
+  bank?: EmployeeBankDetails;
+  skills?: EmployeeSkill[];
+  primarySkill?: string;
+  certifications?: EmployeeCertification[];
 }
 
 export interface ManagerOption {
@@ -89,6 +159,169 @@ export interface GetManagersListResponse {
 export interface EmployeeListFilters {
   managerId?: string;
   managerName?: string;
+}
+
+const employmentTypeFromApi: Record<ApiEmploymentType, EmploymentType> = {
+  PERMANENT: "permanent",
+  CONTRACT: "contract",
+  INTERN: "intern",
+};
+
+const employmentTypeToApi: Record<EmploymentType, ApiEmploymentType> = {
+  permanent: "PERMANENT",
+  contract: "CONTRACT",
+  intern: "INTERN",
+};
+
+const payrollTypeFromApi: Record<ApiPayrollType, PayrollType> = {
+  MONTHLY: "monthly",
+  WEEKLY: "weekly",
+};
+
+const payrollTypeToApi: Record<PayrollType, ApiPayrollType> = {
+  monthly: "MONTHLY",
+  weekly: "WEEKLY",
+};
+
+const approvalStatusFromApi: Record<ApiProfileApprovalStatus, ProfileApprovalStatus> = {
+  NOT_SUBMITTED: "not_submitted",
+  PENDING: "pending",
+  APPROVED: "approved",
+  REJECTED: "rejected",
+};
+
+function mapApprovalStatus(
+  status?: ApiProfileApprovalStatus
+): ProfileApprovalStatus {
+  return status ? approvalStatusFromApi[status] : "not_submitted";
+}
+
+function mapApiSalary(salary?: ApiEmployeeSalary): EmployeeSalary | undefined {
+  if (!salary) return undefined;
+
+  return {
+    ctc: salary.ctc,
+    basicSalary: salary.basicSalary,
+    hra: salary.hra,
+    specialAllowance: salary.specialAllowance,
+    providentFund: salary.providentFund,
+    professionalTax: salary.professionalTax,
+    effectiveFrom: salary.effectiveFrom,
+    payrollType: salary.payrollType
+      ? payrollTypeFromApi[salary.payrollType]
+      : undefined,
+  };
+}
+
+function mapApiBank(bank?: ApiEmployeeBank): EmployeeBankDetails | undefined {
+  if (!bank) return undefined;
+
+  return {
+    accountHolderName: bank.accountHolderName,
+    bankName: bank.bankName,
+    accountNumber: bank.accountNumber,
+    ifscCode: bank.ifscCode,
+    branch: bank.branch,
+    upiId: bank.upiId,
+  };
+}
+
+function mapApiSkillsFromEmployee(skills?: ApiEmployeeSkill[]): EmployeeSkill[] | undefined {
+  return mapApiSkills(skills);
+}
+
+function mapSalaryToApi(salary?: EmployeeSalary) {
+  if (!salary) return undefined;
+
+  return {
+    ctc: salary.ctc,
+    basicSalary: salary.basicSalary,
+    hra: salary.hra,
+    specialAllowance: salary.specialAllowance,
+    providentFund: salary.providentFund,
+    professionalTax: salary.professionalTax,
+    effectiveFrom: salary.effectiveFrom,
+    payrollType: salary.payrollType
+      ? payrollTypeToApi[salary.payrollType]
+      : undefined,
+  };
+}
+
+function mapBankToApi(bank?: EmployeeBankDetails) {
+  if (!bank) return undefined;
+
+  return {
+    accountHolderName: bank.accountHolderName?.trim() || undefined,
+    bankName: bank.bankName?.trim() || undefined,
+    accountNumber: bank.accountNumber?.trim() || undefined,
+    ifscCode: bank.ifscCode?.trim() || undefined,
+    branch: bank.branch?.trim() || undefined,
+    upiId: bank.upiId?.trim() || undefined,
+  };
+}
+
+function buildEmployeePayload(
+  input: CreateEmployeeInput | UpdateEmployeeInput,
+  options?: { includePassword?: boolean }
+) {
+  const payload: Record<string, unknown> = {};
+
+  if ("name" in input && input.name !== undefined) {
+    payload.name = input.name.trim();
+  }
+  if ("email" in input && input.email !== undefined) {
+    payload.email = input.email.trim().toLowerCase();
+  }
+  if (
+    options?.includePassword &&
+    "password" in input &&
+    input.password?.trim()
+  ) {
+    payload.password = encrypt(input.password.trim());
+  } else if ("password" in input && input.password?.trim()) {
+    payload.password = encrypt(input.password.trim());
+  }
+  if ("contactNo" in input && input.contactNo !== undefined) {
+    payload.contactNo = input.contactNo.trim();
+  }
+  if ("joiningDate" in input && input.joiningDate !== undefined) {
+    payload.joiningDate = input.joiningDate;
+  }
+  if ("designation" in input && input.designation !== undefined) {
+    payload.designation = input.designation.trim();
+  }
+  if ("department" in input && input.department !== undefined) {
+    payload.department = input.department.trim() || undefined;
+  }
+  if ("managerId" in input && input.managerId !== undefined) {
+    payload.managerId = input.managerId;
+  }
+  if ("yearsOfExperience" in input && input.yearsOfExperience !== undefined) {
+    payload.yearsOfExperience = input.yearsOfExperience;
+  }
+  if ("employmentType" in input && input.employmentType !== undefined) {
+    payload.employmentType = employmentTypeToApi[input.employmentType];
+  }
+  if ("workLocation" in input && input.workLocation !== undefined) {
+    payload.workLocation = input.workLocation.trim() || undefined;
+  }
+  if ("salary" in input && input.salary !== undefined) {
+    payload.salary = mapSalaryToApi(input.salary);
+  }
+  if ("bank" in input && input.bank !== undefined) {
+    payload.bank = mapBankToApi(input.bank);
+  }
+  if ("skills" in input && input.skills !== undefined) {
+    payload.skills = mapSkillsToApi(input.skills);
+  }
+  if ("primarySkill" in input && input.primarySkill !== undefined) {
+    payload.primarySkill = input.primarySkill.trim() || undefined;
+  }
+  if ("certifications" in input && input.certifications !== undefined) {
+    payload.certifications = mapCertificationsToApi(input.certifications);
+  }
+
+  return payload;
 }
 
 function mapManagerOptions(data: GetManagersListResponse): ManagerOption[] {
@@ -155,12 +388,25 @@ export function mapApiEmployeeToEmployee(api: ApiEmployee): Employee {
     email: api.email,
     contactNo: api.contactNo,
     designation: api.designation?.trim() || "—",
+    department: api.department?.trim() || undefined,
     manager: managerName,
     managerId,
     leavePolicy: api.leavePolicy ?? undefined,
     leavePolicyId: api.leavePolicyId ?? undefined,
     status: api.status === "INACTIVE" ? "inactive" : "active",
     joinDate: api.joiningDate,
+    yearsOfExperience: api.yearsOfExperience,
+    employmentType: api.employmentType
+      ? employmentTypeFromApi[api.employmentType]
+      : undefined,
+    workLocation: api.workLocation?.trim() || undefined,
+    salary: mapApiSalary(api.salary),
+    bank: mapApiBank(api.bank),
+    bankStatus: mapApprovalStatus(api.bankStatus),
+    skills: mapApiSkillsFromEmployee(api.skills),
+    skillsStatus: mapApprovalStatus(api.skillsStatus),
+    primarySkill: api.primarySkill?.trim() || undefined,
+    certifications: mapApiCertifications(api.certifications),
   };
 }
 
@@ -228,15 +474,7 @@ export async function getEmployees(): Promise<Employee[]> {
 export async function createEmployee(
   input: CreateEmployeeInput
 ): Promise<Employee> {
-  const payload = {
-    name: input.name.trim(),
-    email: input.email.trim().toLowerCase(),
-    password: encrypt(input.password.trim()),
-    contactNo: input.contactNo.trim(),
-    joiningDate: input.joiningDate,
-    designation: input.designation?.trim() || undefined,
-    managerId: input.managerId || undefined,
-  };
+  const payload = buildEmployeePayload(input, { includePassword: true });
 
   const { data } = await API.post<EmployeeMutationResponse>(
     "/admin/employees",
@@ -254,19 +492,7 @@ export async function updateEmployee(
   id: string,
   input: UpdateEmployeeInput
 ): Promise<Employee> {
-  const payload: Record<string, string | null> = {};
-
-  if (input.name !== undefined) payload.name = input.name.trim();
-  if (input.email !== undefined) payload.email = input.email.trim().toLowerCase();
-  if (input.password?.trim()) payload.password = encrypt(input.password.trim());
-  if (input.contactNo !== undefined) payload.contactNo = input.contactNo.trim();
-  if (input.joiningDate !== undefined) payload.joiningDate = input.joiningDate;
-  if (input.designation !== undefined) {
-    payload.designation = input.designation.trim();
-  }
-  if (input.managerId !== undefined) {
-    payload.managerId = input.managerId;
-  }
+  const payload = buildEmployeePayload(input);
 
   const { data } = await API.put<EmployeeMutationResponse>(
     `/admin/employees/${id}`,
@@ -288,4 +514,35 @@ export async function deleteEmployee(id: string): Promise<void> {
   if (!data.success) {
     throw new Error(data.message ?? "Failed to delete employee");
   }
+}
+
+async function mutateEmployeeApproval(
+  id: string,
+  action: "approve-bank" | "reject-bank" | "approve-skills" | "reject-skills"
+): Promise<Employee> {
+  const { data } = await API.post<EmployeeMutationResponse>(
+    `/admin/employees/${id}/${action}`
+  );
+
+  if (!data.success) {
+    throw new Error(data.message ?? "Failed to update approval status");
+  }
+
+  return mapApiEmployeeToEmployee(data.employee);
+}
+
+export function approveEmployeeBank(id: string): Promise<Employee> {
+  return mutateEmployeeApproval(id, "approve-bank");
+}
+
+export function rejectEmployeeBank(id: string): Promise<Employee> {
+  return mutateEmployeeApproval(id, "reject-bank");
+}
+
+export function approveEmployeeSkills(id: string): Promise<Employee> {
+  return mutateEmployeeApproval(id, "approve-skills");
+}
+
+export function rejectEmployeeSkills(id: string): Promise<Employee> {
+  return mutateEmployeeApproval(id, "reject-skills");
 }

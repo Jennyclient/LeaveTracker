@@ -2,10 +2,12 @@
 
 import type { ComponentType, ReactNode } from "react";
 import { useEffect, useState } from "react";
-import { Eye, EyeOff, Loader2, Pencil, UserPlus } from "lucide-react";
+import { Eye, Loader2, Pencil, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
-import { ActiveBadge } from "@/components/shared/status-badge";
+import { EmployeeFormWizard } from "@/components/shared/employee-form-wizard";
+import { SkillStarRatingDisplay } from "@/components/shared/skill-star-rating";
+import { ActiveBadge, ProfileApprovalBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,18 +16,17 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  dialogFlushFooterClass,
+  dialogFlushHeaderClass,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { createEmployee, getEmployeeManagerOptions, updateEmployee, type ManagerOption } from "@/lib/employees";
 import { formatDate } from "@/lib/format";
+import {
+  approveEmployeeBank,
+  approveEmployeeSkills,
+  rejectEmployeeBank,
+  rejectEmployeeSkills,
+} from "@/lib/employees";
 import type { Employee } from "@/types";
 
 export type EmployeeModalMode = "add" | "edit" | "view";
@@ -34,48 +35,6 @@ export type EmployeeModalState =
   | { mode: "add" }
   | { mode: "edit"; employee: Employee }
   | { mode: "view"; employee: Employee };
-
-type FormState = {
-  name: string;
-  email: string;
-  password: string;
-  contactNo: string;
-  joiningDate: string;
-  designation: string;
-  managerId: string;
-};
-
-const emptyForm: FormState = {
-  name: "",
-  email: "",
-  password: "",
-  contactNo: "",
-  joiningDate: "",
-  designation: "",
-  managerId: "none",
-};
-
-const placeholders = {
-  name: "Enter full name",
-  email: "Enter email address",
-  contactNo: "Enter contact number",
-  password: "Enter password",
-  passwordEdit: "Leave blank to keep current password",
-  designation: "Enter designation",
-  manager: "Select manager",
-} as const;
-
-function employeeToForm(employee: Employee): FormState {
-  return {
-    name: employee.name,
-    email: employee.email,
-    password: "",
-    contactNo: employee.contactNo ?? "",
-    joiningDate: employee.joinDate.slice(0, 10),
-    designation: employee.designation === "—" ? "" : employee.designation,
-    managerId: employee.managerId || "none",
-  };
-}
 
 const headerConfig: Record<
   EmployeeModalMode,
@@ -88,7 +47,8 @@ const headerConfig: Record<
   add: {
     icon: UserPlus,
     title: "Add Employee",
-    description: () => "Create a new employee account with role EMPLOYEE",
+    description: () =>
+      "Create a new employee account. Bank details and skills are added by the employee after login.",
   },
   edit: {
     icon: Pencil,
@@ -115,276 +75,53 @@ function ReadOnlyField({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
-interface EmployeeModalFormProps {
-  mode: "add" | "edit";
-  employee: Employee | null;
-  onClose: () => void;
-  onSuccess: () => void;
+function ViewSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-semibold uppercase tracking-wider text-foreground/75">
+        {title}
+      </p>
+      <div className="h-px bg-border" />
+      <div className="grid gap-3 sm:grid-cols-2">{children}</div>
+    </div>
+  );
 }
 
-function EmployeeModalForm({
-  mode,
-  employee,
-  onClose,
-  onSuccess,
-}: EmployeeModalFormProps) {
-  const [form, setForm] = useState<FormState>(() =>
-    mode === "edit" && employee ? employeeToForm(employee) : emptyForm
-  );
-  const [managers, setManagers] = useState<ManagerOption[]>([]);
-  const [isLoadingManagers, setIsLoadingManagers] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadManagers() {
-      try {
-        const employeeId = mode === "edit" && employee ? employee.id : undefined;
-        const options = await getEmployeeManagerOptions(mode, employeeId);
-
-        if (!cancelled) {
-          setManagers(options);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          const message =
-            error instanceof Error ? error.message : "Failed to load managers";
-          toast.error(message);
-          setManagers([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoadingManagers(false);
-        }
-      }
-    }
-
-    void loadManagers();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [mode, employee]);
-
-  const managerOptions = managers;
-
-  const updateField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (
-      !form.name.trim() ||
-      !form.email.trim() ||
-      !form.contactNo.trim() ||
-      !form.joiningDate ||
-      (mode === "add" && !form.password.trim())
-    ) {
-      toast.error("Please fill in all required fields");
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      if (mode === "add") {
-        const created = await createEmployee({
-          name: form.name,
-          email: form.email,
-          password: form.password,
-          contactNo: form.contactNo,
-          joiningDate: form.joiningDate,
-          designation: form.designation || undefined,
-          managerId: form.managerId !== "none" ? form.managerId : undefined,
-        });
-        toast.success(`${created.name} has been added`);
-      } else if (employee) {
-        const updated = await updateEmployee(employee.id, {
-          name: form.name,
-          email: form.email,
-          password: form.password.trim() || undefined,
-          contactNo: form.contactNo,
-          joiningDate: form.joiningDate,
-          designation: form.designation,
-          managerId: form.managerId === "none" ? null : form.managerId,
-        });
-        toast.success(`${updated.name} has been updated`);
-      }
-
-      onSuccess();
-      onClose();
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : mode === "add"
-            ? "Failed to create employee"
-            : "Failed to update employee";
-      toast.error(message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const idPrefix = mode === "add" ? "add" : "edit";
-
+function ApprovalActions({
+  isProcessing,
+  onApprove,
+  onReject,
+}: {
+  isProcessing: boolean;
+  onApprove: () => void;
+  onReject: () => void;
+}) {
   return (
-    <form onSubmit={handleSubmit} className="max-h-[70vh] overflow-y-auto px-6 py-5">
-      <div className="space-y-5">
-        <div className="space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Personal Information
-          </p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor={`${idPrefix}-name`}>Full Name</Label>
-              <Input
-                id={`${idPrefix}-name`}
-                placeholder={placeholders.name}
-                value={form.name}
-                onChange={(e) => updateField("name", e.target.value)}
-                disabled={isSubmitting}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-email`}>Email</Label>
-              <Input
-                id={`${idPrefix}-email`}
-                type="email"
-                placeholder={placeholders.email}
-                value={form.email}
-                onChange={(e) => updateField("email", e.target.value)}
-                disabled={isSubmitting}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-contactNo`}>Contact Number</Label>
-              <Input
-                id={`${idPrefix}-contactNo`}
-                placeholder={placeholders.contactNo}
-                value={form.contactNo}
-                onChange={(e) => updateField("contactNo", e.target.value)}
-                disabled={isSubmitting}
-                required
-              />
-            </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor={`${idPrefix}-password`}>
-                {mode === "add" ? "Password" : "New Password"}
-              </Label>
-              <div className="relative">
-                <Input
-                  id={`${idPrefix}-password`}
-                  type={showPassword ? "text" : "password"}
-                  placeholder={
-                    mode === "add" ? placeholders.password : placeholders.passwordEdit
-                  }
-                  value={form.password}
-                  onChange={(e) => updateField("password", e.target.value)}
-                  disabled={isSubmitting}
-                  className="pr-10"
-                  required={mode === "add"}
-                />
-                <button
-                  type="button"
-                  className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground hover:text-foreground"
-                  onClick={() => setShowPassword((prev) => !prev)}
-                  disabled={isSubmitting}
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                >
-                  {showPassword ? (
-                    <EyeOff className="size-4" />
-                  ) : (
-                    <Eye className="size-4" />
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Job Information
-          </p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-designation`}>Designation</Label>
-              <Input
-                id={`${idPrefix}-designation`}
-                placeholder={placeholders.designation}
-                value={form.designation}
-                onChange={(e) => updateField("designation", e.target.value)}
-                disabled={isSubmitting}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-joiningDate`}>Joining Date</Label>
-              <Input
-                id={`${idPrefix}-joiningDate`}
-                type="date"
-                value={form.joiningDate}
-                onChange={(e) => updateField("joiningDate", e.target.value)}
-                disabled={isSubmitting}
-                required
-              />
-            </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label>Manager</Label>
-              <Select
-                value={form.managerId}
-                onValueChange={(value) => updateField("managerId", value)}
-                disabled={isSubmitting || isLoadingManagers}
-              >
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={
-                      isLoadingManagers ? "Loading managers..." : placeholders.manager
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Select Manager</SelectItem>
-                  {managerOptions.map((option) => (
-                    <SelectItem key={option.id} value={option.id}>
-                      {option.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <DialogFooter className="mt-6 gap-2 px-0 sm:justify-end">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onClose}
-          disabled={isSubmitting}
-        >
-          Cancel
-        </Button>
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? (
-            <>
-              <Loader2 className="size-4 animate-spin" />
-              {mode === "add" ? "Creating..." : "Saving..."}
-            </>
-          ) : mode === "add" ? (
-            "Add Employee"
-          ) : (
-            "Save Changes"
-          )}
-        </Button>
-      </DialogFooter>
-    </form>
+    <div className="flex flex-wrap gap-2 sm:col-span-2">
+      <Button
+        type="button"
+        size="sm"
+        onClick={onApprove}
+        disabled={isProcessing}
+      >
+        {isProcessing ? <Loader2 className="size-4 animate-spin" /> : "Approve"}
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={onReject}
+        disabled={isProcessing}
+      >
+        Reject
+      </Button>
+    </div>
   );
 }
 
@@ -392,51 +129,267 @@ function EmployeeModalView({
   employee,
   onClose,
   onEdit,
+  onUpdated,
 }: {
   employee: Employee;
   onClose: () => void;
   onEdit: () => void;
+  onUpdated: (employee: Employee) => void;
 }) {
+  const [current, setCurrent] = useState(employee);
+  const [processingSection, setProcessingSection] = useState<
+    "bank" | "skills" | null
+  >(null);
+
+  useEffect(() => {
+    setCurrent(employee);
+  }, [employee]);
+
+  const bankStatus = current.bankStatus ?? "not_submitted";
+  const skillsStatus = current.skillsStatus ?? "not_submitted";
+
+  const handleApproval = async (
+    section: "bank" | "skills",
+    action: "approve" | "reject"
+  ) => {
+    setProcessingSection(section);
+    try {
+      const updated =
+        section === "bank"
+          ? action === "approve"
+            ? await approveEmployeeBank(current.id)
+            : await rejectEmployeeBank(current.id)
+          : action === "approve"
+            ? await approveEmployeeSkills(current.id)
+            : await rejectEmployeeSkills(current.id);
+
+      setCurrent(updated);
+      onUpdated(updated);
+      toast.success(
+        `${section === "bank" ? "Bank details" : "Skills"} ${
+          action === "approve" ? "approved" : "rejected"
+        }`
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to update approval";
+      toast.error(message);
+    } finally {
+      setProcessingSection(null);
+    }
+  };
+
   return (
-    <div className="max-h-[70vh] overflow-y-auto px-6 py-5">
-      <div className="space-y-5">
-        <div className="space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Personal Information
-          </p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <ReadOnlyField label="Full Name" value={employee.name} />
-            <ReadOnlyField label="Employee ID" value={employee.employeeId} />
-            <ReadOnlyField label="Email" value={employee.email} />
-            <ReadOnlyField label="Contact Number" value={employee.contactNo} />
-            <div className="space-y-2 sm:col-span-2">
-              <Label>Status</Label>
-              <div className="flex min-h-9 items-center">
-                <ActiveBadge active={employee.status === "active"} />
-              </div>
+    <>
+      <div className="max-h-[70vh] overflow-y-auto px-6 py-6">
+      <div className="space-y-6">
+        <ViewSection title="Personal Information">
+          <ReadOnlyField label="Full Name" value={current.name} />
+          <ReadOnlyField label="Employee ID" value={current.employeeId} />
+          <ReadOnlyField label="Email" value={current.email} />
+          <ReadOnlyField label="Contact Number" value={current.contactNo} />
+          <div className="space-y-2 sm:col-span-2">
+            <Label>Status</Label>
+            <div className="flex min-h-9 items-center">
+              <ActiveBadge active={current.status === "active"} />
             </div>
           </div>
-        </div>
+        </ViewSection>
 
-        <div className="space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Job Information
-          </p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <ReadOnlyField label="Designation" value={employee.designation} />
-            <ReadOnlyField
-              label="Joining Date"
-              value={formatDate(employee.joinDate)}
-            />
-            <ReadOnlyField label="Manager" value={employee.manager} />
-            {employee.leavePolicy && (
-              <ReadOnlyField label="Leave Policy" value={employee.leavePolicy} />
-            )}
+        <ViewSection title="Job Information">
+          <ReadOnlyField label="Department" value={current.department} />
+          <ReadOnlyField label="Designation" value={current.designation} />
+          <ReadOnlyField label="Manager" value={current.manager} />
+          <ReadOnlyField
+            label="Joining Date"
+            value={formatDate(current.joinDate)}
+          />
+          <ReadOnlyField
+            label="Years of Experience"
+            value={
+              current.yearsOfExperience !== undefined
+                ? `${current.yearsOfExperience} years`
+                : undefined
+            }
+          />
+          <ReadOnlyField
+            label="Employment Type"
+            value={
+              current.employmentType
+                ? current.employmentType.charAt(0).toUpperCase() +
+                  current.employmentType.slice(1)
+                : undefined
+            }
+          />
+          <ReadOnlyField label="Work Location" value={current.workLocation} />
+          {current.leavePolicy && (
+            <ReadOnlyField label="Leave Policy" value={current.leavePolicy} />
+          )}
+        </ViewSection>
+
+        <ViewSection title="Salary Information">
+          <ReadOnlyField
+            label="CTC"
+            value={current.salary?.ctc ? `₹${current.salary.ctc}` : undefined}
+          />
+          <ReadOnlyField
+            label="Basic Salary"
+            value={
+              current.salary?.basicSalary
+                ? `₹${current.salary.basicSalary}`
+                : undefined
+            }
+          />
+          <ReadOnlyField
+            label="HRA"
+            value={current.salary?.hra ? `₹${current.salary.hra}` : undefined}
+          />
+          <ReadOnlyField
+            label="Special Allowance"
+            value={
+              current.salary?.specialAllowance
+                ? `₹${current.salary.specialAllowance}`
+                : undefined
+            }
+          />
+          <ReadOnlyField
+            label="Provident Fund"
+            value={
+              current.salary?.providentFund
+                ? `₹${current.salary.providentFund}`
+                : undefined
+            }
+          />
+          <ReadOnlyField
+            label="Professional Tax"
+            value={
+              current.salary?.professionalTax
+                ? `₹${current.salary.professionalTax}`
+                : undefined
+            }
+          />
+          <ReadOnlyField
+            label="Salary Effective From"
+            value={
+              current.salary?.effectiveFrom
+                ? formatDate(current.salary.effectiveFrom)
+                : undefined
+            }
+          />
+          <ReadOnlyField
+            label="Payroll Type"
+            value={
+              current.salary?.payrollType
+                ? current.salary.payrollType.charAt(0).toUpperCase() +
+                  current.salary.payrollType.slice(1)
+                : undefined
+            }
+          />
+        </ViewSection>
+
+        <ViewSection title="Bank Details">
+          <div className="space-y-2 sm:col-span-2">
+            <Label>Approval Status</Label>
+            <div className="flex min-h-9 items-center">
+              <ProfileApprovalBadge status={bankStatus} />
+            </div>
           </div>
-        </div>
+          <ReadOnlyField
+            label="Account Holder Name"
+            value={current.bank?.accountHolderName}
+          />
+          <ReadOnlyField label="Bank Name" value={current.bank?.bankName} />
+          <ReadOnlyField
+            label="Account Number"
+            value={current.bank?.accountNumber}
+          />
+          <ReadOnlyField label="IFSC Code" value={current.bank?.ifscCode} />
+          <ReadOnlyField label="Branch" value={current.bank?.branch} />
+          <ReadOnlyField label="UPI ID" value={current.bank?.upiId} />
+          {bankStatus === "pending" && (
+            <ApprovalActions
+              isProcessing={processingSection === "bank"}
+              onApprove={() => void handleApproval("bank", "approve")}
+              onReject={() => void handleApproval("bank", "reject")}
+            />
+          )}
+        </ViewSection>
+
+        <ViewSection title="Skills">
+          <div className="space-y-2 sm:col-span-2">
+            <Label>Approval Status</Label>
+            <div className="flex min-h-9 items-center">
+              <ProfileApprovalBadge status={skillsStatus} />
+            </div>
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label>Technical Skills</Label>
+            <div className="flex min-h-9 flex-wrap items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+              {current.skills?.length ? (
+                current.skills.map((skill) => (
+                  <span
+                    key={skill.name}
+                    className="rounded-full bg-secondary px-2 py-0.5 text-xs"
+                  >
+                    {skill.name}
+                  </span>
+                ))
+              ) : (
+                "—"
+              )}
+            </div>
+          </div>
+          {current.skills && current.skills.length > 0 && (
+            <div className="space-y-2 sm:col-span-2">
+              <Label>Skill Proficiency</Label>
+              <div className="space-y-2 rounded-md border bg-muted/30 px-3 py-2">
+                {current.skills.map((skill) => (
+                  <div
+                    key={skill.name}
+                    className="flex items-center justify-between gap-3"
+                  >
+                    <span className="text-sm">{skill.name}</span>
+                    <SkillStarRatingDisplay value={skill.proficiency} size="sm" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <ReadOnlyField label="Primary Skill" value={current.primarySkill} />
+          <div className="space-y-2 sm:col-span-2">
+            <Label>Certifications</Label>
+            <div className="rounded-md border bg-muted/30 px-3 py-2 text-sm">
+              {current.certifications?.length ? (
+                <div className="space-y-2">
+                  {current.certifications.map((cert, index) => (
+                    <div key={`${cert.name}-${index}`}>
+                      <p className="font-medium">{cert.name}</p>
+                      <p className="text-muted-foreground">{cert.issuedBy}</p>
+                      {cert.issueDate && (
+                        <p className="text-xs text-muted-foreground">
+                          Issued {formatDate(cert.issueDate)}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                "—"
+              )}
+            </div>
+          </div>
+          {skillsStatus === "pending" && (
+            <ApprovalActions
+              isProcessing={processingSection === "skills"}
+              onApprove={() => void handleApproval("skills", "approve")}
+              onReject={() => void handleApproval("skills", "reject")}
+            />
+          )}
+        </ViewSection>
+      </div>
       </div>
 
-      <DialogFooter className="mt-6 gap-2 px-0 sm:justify-end">
+      <DialogFooter className={dialogFlushFooterClass}>
         <Button type="button" variant="outline" onClick={onClose}>
           Close
         </Button>
@@ -445,7 +398,7 @@ function EmployeeModalView({
           Edit Employee
         </Button>
       </DialogFooter>
-    </div>
+    </>
   );
 }
 
@@ -465,17 +418,28 @@ export function EmployeeModal({
   const open = state !== null;
   const mode = state?.mode;
   const employee = state && state.mode !== "add" ? state.employee : null;
+  const [viewEmployee, setViewEmployee] = useState<Employee | null>(employee);
+
+  useEffect(() => {
+    setViewEmployee(employee);
+  }, [employee]);
+
   const config = mode ? headerConfig[mode] : null;
   const HeaderIcon = config?.icon;
 
   const formKey =
     mode === "add" ? "add" : employee ? `${mode}-${employee.id}` : mode;
 
+  const handleViewUpdated = (updated: Employee) => {
+    setViewEmployee(updated);
+    onSuccess();
+  };
+
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-lg">
+      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-2xl">
         {config && HeaderIcon && (
-          <DialogHeader className="border-b bg-muted/20 px-6 py-5">
+          <DialogHeader className={dialogFlushHeaderClass}>
             <div className="flex items-center gap-3">
               <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <HeaderIcon className="size-5" />
@@ -490,16 +454,17 @@ export function EmployeeModal({
           </DialogHeader>
         )}
 
-        {mode === "view" && employee && (
+        {mode === "view" && viewEmployee && (
           <EmployeeModalView
-            employee={employee}
+            employee={viewEmployee}
             onClose={onClose}
-            onEdit={() => onEdit(employee)}
+            onEdit={() => onEdit(viewEmployee)}
+            onUpdated={handleViewUpdated}
           />
         )}
 
         {(mode === "add" || mode === "edit") && (
-          <EmployeeModalForm
+          <EmployeeFormWizard
             key={formKey}
             mode={mode}
             employee={employee}

@@ -3,11 +3,16 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { EmployeeBankCard } from "@/components/shared/employee-bank-card";
+import { EmployeeProfileHeader } from "@/components/shared/employee-profile-header";
+import { EmployeeProfilePendingPanel } from "@/components/shared/employee-profile-pending-panel";
+import { EmployeeSalaryCard } from "@/components/shared/employee-salary-card";
+import { EmployeeSkillsCard } from "@/components/shared/employee-skills-card";
+import { ProfileDetailField } from "@/components/shared/profile-detail-field";
+import { ProfileSectionCard } from "@/components/shared/profile-section-card";
 import { PageHeader } from "@/components/layout/page-header";
-import { ActiveBadge } from "@/components/shared/status-badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDate } from "@/lib/format";
 import { roleLabels } from "@/lib/navigation";
 import { getEmployeeProfile } from "@/lib/profile";
@@ -15,30 +20,13 @@ import type { EmployeeProfile } from "@/types";
 
 function ProfileSkeleton() {
   return (
-    <div className="grid gap-6 lg:grid-cols-3">
-      <Card className="lg:col-span-1">
-        <CardContent className="flex flex-col items-center pt-6 text-center">
-          <Skeleton className="size-20 rounded-full" />
-          <Skeleton className="mt-4 h-6 w-40" />
-          <Skeleton className="mt-2 h-4 w-48" />
-          <Skeleton className="mt-2 h-4 w-28" />
-        </CardContent>
-      </Card>
-      <Card className="lg:col-span-2">
-        <CardHeader>
-          <Skeleton className="h-6 w-44" />
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {Array.from({ length: 6 }).map((_, index) => (
-              <div key={index} className="space-y-2">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-5 w-36" />
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+    <div className="space-y-6">
+      <Skeleton className="h-44 w-full rounded-xl" />
+      <Skeleton className="h-10 w-80" />
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Skeleton className="h-64 rounded-xl" />
+        <Skeleton className="h-64 rounded-xl" />
+      </div>
     </div>
   );
 }
@@ -46,6 +34,8 @@ function ProfileSkeleton() {
 export default function EmployeeProfilePage() {
   const [profile, setProfile] = useState<EmployeeProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [bankDialogOpen, setBankDialogOpen] = useState(false);
+  const [skillsDialogOpen, setSkillsDialogOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -53,18 +43,15 @@ export default function EmployeeProfilePage() {
     async function loadProfile() {
       try {
         const data = await getEmployeeProfile();
-        if (cancelled) {
-          return;
+        if (!cancelled) {
+          setProfile(data);
         }
-
-        setProfile(data);
       } catch (error) {
-        if (cancelled) {
-          return;
+        if (!cancelled) {
+          const message =
+            error instanceof Error ? error.message : "Failed to load profile";
+          toast.error(message);
         }
-
-        const message = error instanceof Error ? error.message : "Failed to load profile";
-        toast.error(message);
       } finally {
         if (!cancelled) {
           setIsLoading(false);
@@ -83,8 +70,8 @@ export default function EmployeeProfilePage() {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Profile"
-          description="Your employee information and leave policy details"
+          title="My Profile"
+          description="Manage your personal information, finances, and verification details."
         />
         <ProfileSkeleton />
       </div>
@@ -95,105 +82,129 @@ export default function EmployeeProfilePage() {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Profile"
-          description="Your employee information and leave policy details"
+          title="My Profile"
+          description="Manage your personal information, finances, and verification details."
         />
-        <Card>
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">
+        <ProfileSectionCard title="Profile">
+          <p className="text-sm text-muted-foreground">
             Unable to load profile details.
-          </CardContent>
-        </Card>
+          </p>
+        </ProfileSectionCard>
       </div>
     );
   }
 
-  const initials = profile.name
-    .split(" ")
-    .map((part) => part[0])
-    .join("");
-
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Profile"
-        description="Your employee information and leave policy details"
+        title="My Profile"
+        description="Manage your personal information, finances, and verification details."
       />
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-1">
-          <CardContent className="flex flex-col items-center pt-6 text-center">
-            <Avatar className="size-20">
-              <AvatarFallback className="bg-primary/10 text-primary text-xl font-semibold">
-                {initials}
-              </AvatarFallback>
-            </Avatar>
-            <h2 className="mt-4 text-xl font-semibold">{profile.name}</h2>
-            <p className="text-sm text-muted-foreground">{profile.email}</p>
-            <p className="mt-2 font-mono text-xs text-muted-foreground">
-              {profile.employeeId}
-            </p>
-            <div className="mt-3">
-              <ActiveBadge active={profile.status === "active"} />
-            </div>
-          </CardContent>
-        </Card>
+      <EmployeeProfileHeader profile={profile} />
 
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Employee Information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <p className="text-sm text-muted-foreground">Designation</p>
-                <p className="font-medium">{profile.designation}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Role</p>
-                <p className="font-medium">{roleLabels[profile.role]}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Contact Number</p>
-                <p className="font-medium">{profile.contactNo}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Joining Date</p>
-                <p className="font-medium">{formatDate(profile.joiningDate)}</p>
-              </div>
-            </div>
+      <Tabs defaultValue="about" className="gap-6">
+        <TabsList
+          variant="line"
+          className="h-auto w-full justify-start gap-6 rounded-none border-b bg-transparent p-0"
+        >
+          <TabsTrigger
+            value="about"
+            className="rounded-none px-0 pb-3 after:bg-primary data-active:text-primary"
+          >
+            About
+          </TabsTrigger>
+          <TabsTrigger
+            value="profile"
+            className="rounded-none px-0 pb-3 after:bg-primary data-active:text-primary"
+          >
+            Profile
+          </TabsTrigger>
+          <TabsTrigger
+            value="finances"
+            className="rounded-none px-0 pb-3 after:bg-primary data-active:text-primary"
+          >
+            Finances
+          </TabsTrigger>
+        </TabsList>
 
+        <TabsContent value="about" className="mt-0 space-y-6">
+          <div className="grid gap-6 lg:grid-cols-2">
+            <ProfileSectionCard title="Primary Details">
+              <div className="grid gap-5 sm:grid-cols-2">
+                <ProfileDetailField label="Full Name" value={profile.name} />
+                <ProfileDetailField label="Employee ID" value={profile.employeeId} />
+                <ProfileDetailField label="Designation" value={profile.designation} />
+                <ProfileDetailField label="Role" value={roleLabels[profile.role]} />
+                <ProfileDetailField
+                  label="Joining Date"
+                  value={formatDate(profile.joiningDate)}
+                />
+                <ProfileDetailField label="Status" value={profile.status} />
+              </div>
+            </ProfileSectionCard>
+
+            <ProfileSectionCard title="Contact Details">
+              <div className="grid gap-5 sm:grid-cols-2">
+                <ProfileDetailField label="Work Email" value={profile.email} />
+                <ProfileDetailField label="Mobile Number" value={profile.contactNo} />
+              </div>
+            </ProfileSectionCard>
+          </div>
+
+          <ProfileSectionCard title="Reporting Manager">
             {profile.manager ? (
-              <div className="space-y-4 rounded-lg border bg-muted/20 p-4">
-                <p className="text-sm font-medium">Manager Information</p>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Name</p>
-                    <p className="font-medium">{profile.manager.name}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Employee ID</p>
-                    <p className="font-medium">{profile.manager.employeeId}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Email</p>
-                    <p className="font-medium">{profile.manager.email}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Contact Number</p>
-                    <p className="font-medium">{profile.manager.contactNo}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Designation</p>
-                    <p className="font-medium">{profile.manager.designation}</p>
-                  </div>
-                </div>
+              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                <ProfileDetailField label="Name" value={profile.manager.name} />
+                <ProfileDetailField
+                  label="Employee ID"
+                  value={profile.manager.employeeId}
+                />
+                <ProfileDetailField label="Email" value={profile.manager.email} />
+                <ProfileDetailField
+                  label="Contact Number"
+                  value={profile.manager.contactNo}
+                />
+                <ProfileDetailField
+                  label="Designation"
+                  value={profile.manager.designation}
+                />
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">No manager assigned.</p>
+              <p className="text-sm italic text-muted-foreground">
+                No manager assigned yet.
+              </p>
             )}
-          </CardContent>
-        </Card>
-      </div>
+          </ProfileSectionCard>
+        </TabsContent>
+
+        <TabsContent value="profile" className="mt-0 space-y-6">
+          <EmployeeProfilePendingPanel
+            profile={profile}
+            onAddBank={() => setBankDialogOpen(true)}
+            onAddSkills={() => setSkillsDialogOpen(true)}
+          />
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <EmployeeBankCard
+              profile={profile}
+              onUpdated={setProfile}
+              dialogOpen={bankDialogOpen}
+              onDialogOpenChange={setBankDialogOpen}
+            />
+            <EmployeeSkillsCard
+              profile={profile}
+              onUpdated={setProfile}
+              dialogOpen={skillsDialogOpen}
+              onDialogOpenChange={setSkillsDialogOpen}
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="finances" className="mt-0">
+          <EmployeeSalaryCard profile={profile} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

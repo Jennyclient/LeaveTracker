@@ -14,6 +14,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  dialogFlushFooterClass,
+  dialogFlushHeaderClass,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -129,14 +131,12 @@ const headerConfig: Record<
 const modalContentClass =
   "flex max-h-[min(92dvh,calc(100%-1rem))] w-full max-w-[calc(100%-1rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl";
 
-const modalHeaderClass =
-  "shrink-0 border-b bg-muted/20 px-4 py-4 pr-12 sm:px-6 sm:py-5";
+const modalHeaderClass = dialogFlushHeaderClass;
 
 const modalBodyClass =
-  "min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5";
+  "min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-6";
 
-const modalFooterClass =
-  "mx-0 mb-0 mt-0 shrink-0 flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/20 px-4 py-4 sm:flex-row sm:justify-end [&>button]:w-full sm:[&>button]:w-auto";
+const modalFooterClass = `${dialogFlushFooterClass} flex-col-reverse sm:flex-row [&>button]:w-full sm:[&>button]:w-auto`;
 
 function ReadOnlyField({ label, value }: { label: string; value: ReactNode }) {
   return (

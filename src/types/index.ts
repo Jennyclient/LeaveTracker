@@ -4,6 +4,12 @@ export type LoginPortal = "admin" | "employee";
 
 export type LeaveStatus = "pending" | "approved" | "rejected" | "cancelled";
 
+export type ProfileApprovalStatus =
+  | "not_submitted"
+  | "pending"
+  | "approved"
+  | "rejected";
+
 export type HalfDayPeriod = "FIRST_HALF" | "SECOND_HALF";
 
 export type AccrualType = "monthly" | "quarterly" | "yearly" | "none";
@@ -42,6 +48,13 @@ export interface EmployeeProfile {
   role: UserRole;
   status: "active" | "inactive";
   manager: EmployeeProfileManager | null;
+  salary?: EmployeeSalary;
+  bank?: EmployeeBankDetails;
+  bankStatus?: ProfileApprovalStatus;
+  skills?: EmployeeSkill[];
+  skillsStatus?: ProfileApprovalStatus;
+  primarySkill?: string;
+  certifications?: EmployeeCertification[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -66,6 +79,43 @@ export interface Manager {
   teamMembers: ManagerTeamMember[];
 }
 
+export type EmploymentType = "permanent" | "contract" | "intern";
+
+export type PayrollType = "monthly" | "weekly";
+
+export interface EmployeeSkill {
+  name: string;
+  proficiency: number;
+}
+
+export interface EmployeeCertification {
+  name: string;
+  issuedBy: string;
+  issueDate: string;
+  credentialId?: string;
+  credentialUrl?: string;
+}
+
+export interface EmployeeSalary {
+  ctc?: number;
+  basicSalary?: number;
+  hra?: number;
+  specialAllowance?: number;
+  providentFund?: number;
+  professionalTax?: number;
+  effectiveFrom?: string;
+  payrollType?: PayrollType;
+}
+
+export interface EmployeeBankDetails {
+  accountHolderName?: string;
+  bankName?: string;
+  accountNumber?: string;
+  ifscCode?: string;
+  branch?: string;
+  upiId?: string;
+}
+
 export interface Employee {
   id: string;
   employeeId: string;
@@ -73,12 +123,23 @@ export interface Employee {
   email: string;
   contactNo?: string;
   designation: string;
+  department?: string;
   manager: string;
   managerId: string;
   leavePolicy?: string;
   leavePolicyId?: string;
   status: "active" | "inactive";
   joinDate: string;
+  yearsOfExperience?: number;
+  employmentType?: EmploymentType;
+  workLocation?: string;
+  salary?: EmployeeSalary;
+  bank?: EmployeeBankDetails;
+  bankStatus?: ProfileApprovalStatus;
+  skills?: EmployeeSkill[];
+  skillsStatus?: ProfileApprovalStatus;
+  primarySkill?: string;
+  certifications?: EmployeeCertification[];
 }
 
 export interface LeaveType {

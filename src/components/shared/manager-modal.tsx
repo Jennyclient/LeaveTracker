@@ -13,6 +13,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  dialogFlushFooterClass,
+  dialogFlushHeaderClass,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import {
@@ -48,7 +50,7 @@ export function ManagerModal({ manager, onClose }: ManagerModalProps) {
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
       <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-lg">
-        <DialogHeader className="border-b bg-muted/20 px-6 py-5">
+        <DialogHeader className={dialogFlushHeaderClass}>
           <div className="flex items-center gap-3">
             <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <Eye className="size-5" />
@@ -63,7 +65,8 @@ export function ManagerModal({ manager, onClose }: ManagerModalProps) {
         </DialogHeader>
 
         {manager && (
-          <div className="max-h-[70vh] overflow-y-auto px-6 py-5">
+          <>
+            <div className="max-h-[70vh] overflow-y-auto px-6 py-6">
             <div className="space-y-5">
               <div className="space-y-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -129,13 +132,14 @@ export function ManagerModal({ manager, onClose }: ManagerModalProps) {
                 </div>
               </div>
             </div>
+            </div>
 
-            <DialogFooter className="mt-6 gap-2 px-0 sm:justify-end">
+            <DialogFooter className={dialogFlushFooterClass}>
               <Button type="button" variant="outline" onClick={onClose}>
                 Close
               </Button>
             </DialogFooter>
-          </div>
+          </>
         )}
       </DialogContent>
     </Dialog>
