@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Upload } from "lucide-react";
 
@@ -18,10 +18,13 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { getEmployeeHolidays } from "@/lib/holidays";
+import { calculateLeaveDays, formatLeaveDayCount } from "@/lib/leave-days";
 import { createEmployeeLeaveRequest } from "@/lib/leave-requests";
 import { getEmployeeLeaveTypesWithBalance } from "@/lib/leave-types";
 import { toast } from "sonner";
-import type { LeaveType } from "@/types";
+import type { HalfDayPeriod, Holiday, LeaveType } from "@/types";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 type LeaveBalanceByType = Record<
   string,
@@ -41,8 +44,10 @@ export default function ApplyLeavePage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [halfDay, setHalfDay] = useState(false);
+  const [halfDayPeriod, setHalfDayPeriod] = useState<HalfDayPeriod>("FIRST_HALF");
   const [reason, setReason] = useState("");
   const [attachmentDoc, setAttachmentDoc] = useState("");
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -90,10 +95,55 @@ export default function ApplyLeavePage() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadHolidays() {
+      try {
+        const data = await getEmployeeHolidays();
+        if (!cancelled) {
+          setHolidays(data.holidays);
+        }
+      } catch {
+        if (!cancelled) {
+          setHolidays([]);
+        }
+      }
+    }
+
+    void loadHolidays();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const requestedLeaveDays = useMemo(() => {
+    if (!startDate || !endDate) {
+      return null;
+    }
+
+    const effectiveEndDate = halfDay ? startDate : endDate;
+
+    if (new Date(startDate) > new Date(effectiveEndDate)) {
+      return null;
+    }
+
+    return calculateLeaveDays({
+      startDate,
+      endDate: effectiveEndDate,
+      halfDay,
+      holidays,
+    });
+  }, [startDate, endDate, halfDay, holidays]);
+
   const handleHalfDayChange = (checked: boolean) => {
     setHalfDay(checked);
-    if (checked && startDate) {
-      setEndDate(startDate);
+    if (checked) {
+      setHalfDayPeriod("FIRST_HALF");
+      if (startDate) {
+        setEndDate(startDate);
+      }
     }
   };
 
@@ -122,6 +172,11 @@ export default function ApplyLeavePage() {
       return;
     }
 
+    if (halfDay && !halfDayPeriod) {
+      toast.error("Please select first half or second half");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       await createEmployeeLeaveRequest({
@@ -129,6 +184,7 @@ export default function ApplyLeavePage() {
         startDate,
         endDate: halfDay ? startDate : endDate,
         halfDay,
+        halfDayPeriod: halfDay ? halfDayPeriod : undefined,
         reason,
         attachmentDoc: attachmentDoc.trim() || undefined,
       });
@@ -217,6 +273,50 @@ export default function ApplyLeavePage() {
                   disabled={isLoading || isSubmitting}
                 />
               </div>
+
+              {halfDay && (
+                <div className="space-y-3 rounded-lg border p-3">
+                  <p className="text-sm font-medium">Select Half</p>
+                  <RadioGroup
+                    value={halfDayPeriod}
+                    onValueChange={(value) =>
+                      setHalfDayPeriod(value as HalfDayPeriod)
+                    }
+                    disabled={isLoading || isSubmitting}
+                    className="grid gap-3 sm:grid-cols-2"
+                  >
+                    <div className="flex items-center gap-2 rounded-md border p-3">
+                      <RadioGroupItem value="FIRST_HALF" id="first-half" />
+                      <Label htmlFor="first-half" className="font-normal">
+                        First Half
+                      </Label>
+                    </div>
+                    <div className="flex items-center gap-2 rounded-md border p-3">
+                      <RadioGroupItem value="SECOND_HALF" id="second-half" />
+                      <Label htmlFor="second-half" className="font-normal">
+                        Second Half
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+              )}
+
+              {requestedLeaveDays !== null && (
+                <div className="rounded-lg border bg-muted/40 p-3">
+                  <p className="text-sm font-medium">
+                    Leave days applying for:{" "}
+                    <span className="text-primary">
+                      {formatLeaveDayCount(requestedLeaveDays)}
+                    </span>
+                  </p>
+                  {requestedLeaveDays === 0 && (
+                    <p className="mt-1 text-xs text-destructive">
+                      No applicable leave days in the selected range after excluding
+                      holidays.
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="reason">Reason</Label>

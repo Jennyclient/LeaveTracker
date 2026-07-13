@@ -1,5 +1,5 @@
 import API from "@/lib/api";
-import type { LeaveRequest, LeaveStatus } from "@/types";
+import type { HalfDayPeriod, LeaveRequest, LeaveStatus } from "@/types";
 
 type ApiLeaveStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
 
@@ -22,6 +22,7 @@ interface ApiLeaveRequest {
   createdAt?: string;
   appliedDate?: string;
   halfDay?: boolean;
+  halfDayPeriod?: HalfDayPeriod;
 }
 
 interface GetLeaveRequestsResponse {
@@ -108,6 +109,7 @@ function mapApiLeaveRequestToLeaveRequest(api: ApiLeaveRequest): LeaveRequest {
     reason: api.reason ?? "",
     appliedDate: api.appliedDate ?? api.createdAt ?? api.startDate,
     halfDay: api.halfDay,
+    halfDayPeriod: api.halfDayPeriod,
     attachmentDoc: api.attachmentDoc,
   };
 }
@@ -225,6 +227,7 @@ export interface CreateEmployeeLeaveRequestInput {
   startDate: string;
   endDate: string;
   halfDay: boolean;
+  halfDayPeriod?: HalfDayPeriod;
   reason: string;
   attachmentDoc?: string;
 }
@@ -264,6 +267,9 @@ export async function createEmployeeLeaveRequest(
     startDate: input.startDate,
     endDate: input.endDate,
     halfDay: input.halfDay,
+    ...(input.halfDay && input.halfDayPeriod
+      ? { halfDayPeriod: input.halfDayPeriod }
+      : {}),
     reason: input.reason.trim(),
     ...(input.attachmentDoc ? { attachmentDoc: input.attachmentDoc } : {}),
   };

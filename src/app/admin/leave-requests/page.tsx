@@ -35,7 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatHalfDayPeriod } from "@/lib/format";
 import {
   getAdminLeaveRequests,
   updateLeaveRequestAction,
@@ -304,7 +304,12 @@ export default function LeaveRequestsPage() {
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">
                     Half Day
                   </p>
-                  <p className="mt-1 font-medium">{selectedRequest.halfDay ? "Yes" : "No"}</p>
+                  <p className="mt-1 font-medium">
+                    {selectedRequest.halfDay
+                      ? formatHalfDayPeriod(selectedRequest.halfDayPeriod) ||
+                        "Yes"
+                      : "No"}
+                  </p>
                 </div>
               </div>
 

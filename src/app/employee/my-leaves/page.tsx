@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatHalfDayPeriod } from "@/lib/format";
 import { getEmployeeLeaveRequests } from "@/lib/leave-requests";
 import { getEmployeeLeaveTypes } from "@/lib/leave-types";
 import { toast } from "sonner";
@@ -138,7 +138,13 @@ export default function MyLeavesPage() {
                   <TableCell>{leave.leaveType}</TableCell>
                   <TableCell>
                     {leave.days}
-                    {leave.halfDay ? " (Half)" : ""}
+                    {leave.halfDay
+                      ? ` (Half${
+                          leave.halfDayPeriod
+                            ? ` - ${formatHalfDayPeriod(leave.halfDayPeriod)}`
+                            : ""
+                        })`
+                      : ""}
                   </TableCell>
                   <TableCell>
                     <StatusBadge status={leave.status} />

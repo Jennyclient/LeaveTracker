@@ -4,6 +4,8 @@ export type LoginPortal = "admin" | "employee";
 
 export type LeaveStatus = "pending" | "approved" | "rejected" | "cancelled";
 
+export type HalfDayPeriod = "FIRST_HALF" | "SECOND_HALF";
+
 export type AccrualType = "monthly" | "quarterly" | "yearly" | "none";
 
 export type HolidayType = "public" | "restricted" | "optional";
@@ -112,6 +114,7 @@ export interface LeaveRequest {
   reason: string;
   appliedDate: string;
   halfDay?: boolean;
+  halfDayPeriod?: HalfDayPeriod;
   attachmentDoc?: string;
 }
 
