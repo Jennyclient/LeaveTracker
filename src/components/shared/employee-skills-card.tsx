@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/select";
 import { emptyCertification } from "@/lib/employee-skills";
 import { formatDate } from "@/lib/format";
-import { createEmployeeSkills, updateEmployeeSkills } from "@/lib/profile";
+import { createEmployeeSkills, notifyEmployeeProfileStatusChanged, updateEmployeeSkills } from "@/lib/profile";
 import type {
   EmployeeCertification,
   EmployeeProfile,
@@ -227,6 +227,7 @@ export function EmployeeSkillsCard({
       const saveSkills = hasData ? updateEmployeeSkills : createEmployeeSkills;
       const updated = await saveSkills(payload);
       onUpdated(updated);
+      notifyEmployeeProfileStatusChanged();
       setDialogOpen(false);
       toast.success(
         hasData

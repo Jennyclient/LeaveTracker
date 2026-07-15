@@ -243,6 +243,32 @@ function mapApiSalary(salary?: ApiEmployeeSalary): EmployeeSalary | undefined {
   };
 }
 
+interface GetEmployeeSalaryResponse {
+  success: boolean;
+  message?: string;
+  salary?: ApiEmployeeSalary;
+}
+
+export async function getEmployeeSalary(): Promise<EmployeeSalary | undefined> {
+  try {
+    const { data } = await API.get<GetEmployeeSalaryResponse>("/employee/salary");
+
+    if (!data.success) {
+      if (isProfileDetailsNotFoundMessage(data.message)) {
+        return undefined;
+      }
+      throw new Error(data.message ?? "Failed to fetch salary details");
+    }
+
+    return mapApiSalary(data.salary);
+  } catch (error) {
+    if (isProfileDetailsNotFoundError(error)) {
+      return undefined;
+    }
+    throw error;
+  }
+}
+
 function mapApiManager(manager: ApiManagerRef | null | undefined): EmployeeProfileManager | null {
   if (!manager) {
     return null;
@@ -305,6 +331,48 @@ export async function getEmployeeProfile(): Promise<EmployeeProfile> {
   }
 
   return mapApiProfile(data.profile);
+}
+
+export interface EmployeeProfileStatus {
+  employeeId: string;
+  bankDetailsFilled: boolean;
+  skillsFilled: boolean;
+  isComplete: boolean;
+}
+
+interface EmployeeProfileStatusResponse {
+  success: boolean;
+  message?: string;
+  employeeId?: string;
+  bankDetailsFilled?: boolean;
+  skillsFilled?: boolean;
+}
+
+export const EMPLOYEE_PROFILE_STATUS_EVENT = "employee-profile-status-changed";
+
+export function notifyEmployeeProfileStatusChanged(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(EMPLOYEE_PROFILE_STATUS_EVENT));
+}
+
+export async function getEmployeeProfileStatus(): Promise<EmployeeProfileStatus> {
+  const { data } = await API.get<EmployeeProfileStatusResponse>(
+    "/employee/profile-status"
+  );
+
+  if (!data.success) {
+    throw new Error(data.message ?? "Failed to fetch profile status");
+  }
+
+  const bankDetailsFilled = Boolean(data.bankDetailsFilled);
+  const skillsFilled = Boolean(data.skillsFilled);
+
+  return {
+    employeeId: data.employeeId ?? "",
+    bankDetailsFilled,
+    skillsFilled,
+    isComplete: bankDetailsFilled && skillsFilled,
+  };
 }
 
 export interface UpdateEmployeeBankInput {
@@ -400,6 +468,22 @@ function mapBankDetailsState(
   };
 }
 
+function isProfileDetailsNotFoundMessage(message?: string): boolean {
+  if (!message) return false;
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("bank details not found") ||
+    normalized.includes("skills not found") ||
+    normalized.includes("salary not found")
+  );
+}
+
+function isProfileDetailsNotFoundError(error: unknown): boolean {
+  return (
+    error instanceof Error && isProfileDetailsNotFoundMessage(error.message)
+  );
+}
+
 export function mergeBankDetailsIntoProfile(
   profile: EmployeeProfile,
   bankDetails: EmployeeBankDetailsState
@@ -412,15 +496,25 @@ export function mergeBankDetailsIntoProfile(
 }
 
 export async function getEmployeeBankDetails(): Promise<EmployeeBankDetailsState> {
-  const { data } = await API.get<GetEmployeeBankDetailsResponse>(
-    "/employee/bank-details"
-  );
+  try {
+    const { data } = await API.get<GetEmployeeBankDetailsResponse>(
+      "/employee/bank-details"
+    );
 
-  if (!data.success) {
-    throw new Error(data.message ?? "Failed to fetch bank details");
+    if (!data.success) {
+      if (isProfileDetailsNotFoundMessage(data.message)) {
+        return { bankStatus: "not_submitted" };
+      }
+      throw new Error(data.message ?? "Failed to fetch bank details");
+    }
+
+    return mapBankDetailsState(data);
+  } catch (error) {
+    if (isProfileDetailsNotFoundError(error)) {
+      return { bankStatus: "not_submitted" };
+    }
+    throw error;
   }
-
-  return mapBankDetailsState(data);
 }
 
 export async function getEmployeeProfileWithBankDetails(): Promise<EmployeeProfile> {
@@ -584,13 +678,23 @@ function mapSkillsState(data: EmployeeSkillsApiPayload): EmployeeSkillsState {
 }
 
 export async function getEmployeeSkills(): Promise<EmployeeSkillsState> {
-  const { data } = await API.get<GetEmployeeSkillsResponse>("/employee/skills");
+  try {
+    const { data } = await API.get<GetEmployeeSkillsResponse>("/employee/skills");
 
-  if (!data.success) {
-    throw new Error(data.message ?? "Failed to fetch skills");
+    if (!data.success) {
+      if (isProfileDetailsNotFoundMessage(data.message)) {
+        return { skillsStatus: "not_submitted" };
+      }
+      throw new Error(data.message ?? "Failed to fetch skills");
+    }
+
+    return mapSkillsState(data);
+  } catch (error) {
+    if (isProfileDetailsNotFoundError(error)) {
+      return { skillsStatus: "not_submitted" };
+    }
+    throw error;
   }
-
-  return mapSkillsState(data);
 }
 
 export function mergeSkillsIntoProfile(

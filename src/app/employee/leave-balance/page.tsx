@@ -73,7 +73,7 @@ export default function LeaveBalancePage() {
             const quota = balance.annualQuota ?? balance.allocatedLeaves;
 
             return (
-              <Card key={balance.id}>
+              <Card key={`${balance.leaveTypeId}-${balance.id}`}>
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="flex items-center gap-2 text-base">
                     <span

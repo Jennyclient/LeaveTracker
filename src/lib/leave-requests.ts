@@ -17,6 +17,7 @@ interface ApiLeaveRequest {
   requestedLeaveDays?: number;
   currentLeaveBalance?: number;
   totalAvailableLeaves?: number;
+  availableLeave?: number;
   availableLeaves?: number;
   allocatedLeaves?: number;
   status: ApiLeaveStatus | LeaveStatus | string;
@@ -114,7 +115,7 @@ function mapApiLeaveRequestToLeaveRequest(api: ApiLeaveRequest): LeaveRequest {
     requestedLeaveDays:
       api.requestedLeaveDays ?? api.days ?? api.noOfDays ?? calculatedDays,
     currentLeaveBalance:
-      api.currentLeaveBalance ?? api.availableLeaves,
+      api.currentLeaveBalance ?? api.availableLeave ?? api.availableLeaves,
     totalAvailableLeaves:
       api.totalAvailableLeaves ?? api.allocatedLeaves,
     status: mapStatus(api.status),

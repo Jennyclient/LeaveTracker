@@ -17,6 +17,7 @@ import { formatDate } from "@/lib/format";
 import { roleLabels } from "@/lib/navigation";
 import {
   getEmployeeProfile,
+  getEmployeeSalary,
   loadEmployeeProfileVerificationDetails,
 } from "@/lib/profile";
 import type { EmployeeProfile } from "@/types";
@@ -46,11 +47,17 @@ function ProfileVerificationSkeleton() {
   );
 }
 
+function FinancesSkeleton() {
+  return <Skeleton className="h-64 w-full rounded-xl" />;
+}
+
 export default function EmployeeProfilePage() {
   const [profile, setProfile] = useState<EmployeeProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("about");
   const [isProfileTabLoading, setIsProfileTabLoading] = useState(false);
+  const [isFinancesTabLoading, setIsFinancesTabLoading] = useState(false);
+  const [hasLoadedSalary, setHasLoadedSalary] = useState(false);
   const [bankDialogOpen, setBankDialogOpen] = useState(false);
   const [skillsDialogOpen, setSkillsDialogOpen] = useState(false);
 
@@ -89,11 +96,12 @@ export default function EmployeeProfilePage() {
     }
 
     let cancelled = false;
+    const currentProfile = profile;
 
     async function loadVerificationDetails() {
       setIsProfileTabLoading(true);
       try {
-        const updated = await loadEmployeeProfileVerificationDetails(profile);
+        const updated = await loadEmployeeProfileVerificationDetails(currentProfile);
         if (!cancelled) {
           setProfile(updated);
         }
@@ -118,6 +126,44 @@ export default function EmployeeProfilePage() {
       cancelled = true;
     };
   }, [activeTab, profile?.id]);
+
+  useEffect(() => {
+    if (activeTab !== "finances" || !profile || hasLoadedSalary) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadSalaryDetails() {
+      setIsFinancesTabLoading(true);
+      try {
+        const salary = await getEmployeeSalary();
+        if (!cancelled) {
+          setProfile((current) => (current ? { ...current, salary } : current));
+          setHasLoadedSalary(true);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Failed to load salary details";
+          toast.error(message);
+          setHasLoadedSalary(true);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsFinancesTabLoading(false);
+        }
+      }
+    }
+
+    void loadSalaryDetails();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, profile?.id, hasLoadedSalary]);
 
   if (isLoading) {
     return (
@@ -261,7 +307,11 @@ export default function EmployeeProfilePage() {
         </TabsContent>
 
         <TabsContent value="finances" className="mt-0">
-          <EmployeeSalaryCard profile={profile} />
+          {isFinancesTabLoading ? (
+            <FinancesSkeleton />
+          ) : (
+            <EmployeeSalaryCard profile={profile} />
+          )}
         </TabsContent>
       </Tabs>
     </div>

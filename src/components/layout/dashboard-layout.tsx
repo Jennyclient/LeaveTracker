@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { Header } from "@/components/layout/header";
 import { Sidebar } from "@/components/layout/sidebar";
+import { CompleteProfileBanner } from "@/components/shared/complete-profile-banner";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import {
   getNavigationForRole,
@@ -58,6 +59,7 @@ export function DashboardLayout({ children, role, user }: DashboardLayoutProps) 
           collapsed={collapsed}
           onMobileMenuToggle={() => setMobileOpen(true)}
         />
+        {role === "employee" && <CompleteProfileBanner />}
         <main className="flex-1 p-4 lg:p-6">{children}</main>
       </div>
     </div>

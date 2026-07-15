@@ -45,9 +45,9 @@ interface ApiLeaveRequestSummary {
 }
 
 interface ApiEmployeeLeaveBalance {
-  id: string;
+  id?: string | null;
   employeeId?: string;
-  leaveTypeId: string;
+  leaveTypeId?: string | null;
   leaveName?: string | null;
   policyName?: string | null;
   annualQuota?: number | null;
@@ -74,11 +74,15 @@ function getLeaveTypeColor(id: string): string {
   return LEAVE_TYPE_COLORS[Math.abs(hash) % LEAVE_TYPE_COLORS.length];
 }
 
-function mapApiBalance(item: ApiEmployeeLeaveBalance): EmployeeLeaveBalanceItem {
-  const leaveTypeId = item.leaveTypeId ?? item.id;
+function mapApiBalance(
+  item: ApiEmployeeLeaveBalance,
+  index: number
+): EmployeeLeaveBalanceItem {
+  const leaveTypeId = item.leaveTypeId?.trim() || item.id?.trim() || `leave-${index}`;
+  const id = item.id?.trim() || leaveTypeId;
 
   return {
-    id: item.id,
+    id,
     leaveTypeId,
     leaveName: item.leaveName?.trim() || "—",
     policyName: item.policyName?.trim() || "",

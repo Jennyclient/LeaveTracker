@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useFormErrors } from "@/hooks/use-form-errors";
-import { createEmployeeBank, updateEmployeeBank } from "@/lib/profile";
+import { createEmployeeBank, notifyEmployeeProfileStatusChanged, updateEmployeeBank } from "@/lib/profile";
 import {
   buildFieldErrors,
   hasFieldErrors,
@@ -139,6 +139,7 @@ export function EmployeeBankCard({
       const saveBankDetails = hasData ? updateEmployeeBank : createEmployeeBank;
       const updated = await saveBankDetails(payload);
       onUpdated(updated);
+      notifyEmployeeProfileStatusChanged();
       setDialogOpen(false);
       toast.success(
         hasData

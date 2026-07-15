@@ -73,7 +73,7 @@ export default function LeaveRequestsPage() {
   const { errors, setFormErrors, clearFieldError, clearAllErrors } =
     useFormErrors<"rejectionReason">();
   const [employeeNameFilter, setEmployeeNameFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("pending");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [dateRange, setDateRange] = useState<DateRangeValue | undefined>();
 
