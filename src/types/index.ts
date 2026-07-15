@@ -84,9 +84,11 @@ export type EmploymentType = "permanent" | "contract" | "intern";
 
 export type PayrollType = "monthly" | "weekly";
 
-export type PayrollDisbursementStatus = "pending" | "approved" | "disbursed";
+export type PayrollEntryStatus = "draft" | "approved" | "rejected";
 
-export type PayrollPayslipAction = "APPROVE" | "DISBURSE" | "REVERT";
+export type PayrollEntryAction = "APPROVE" | "REJECT";
+
+export type PayrollStatusFilter = "ALL" | "DRAFT" | "APPROVED" | "REJECTED";
 
 export interface EmployeeSkill {
   name: string;
@@ -265,39 +267,32 @@ export interface AdminSettings {
   updatedAt?: string;
 }
 
-export interface PayslipEarnings {
-  basicSalary: number;
-  hra: number;
-  specialAllowance: number;
-  grossPay: number;
-}
-
-export interface PayslipDeductions {
-  providentFund: number;
-  professionalTax: number;
-  totalDeductions: number;
-}
-
-export interface Payslip {
-  id: string;
+export interface PayrollEntry {
   employeeId: string;
-  employeeUserId: string;
   employeeName: string;
-  payrollMonth: string;
-  periodStart: string;
-  periodEnd: string;
-  earnings: PayslipEarnings;
-  deductions: PayslipDeductions;
-  netPay: number;
-  annualCtc?: number;
-  payrollType: PayrollType;
-  disbursementStatus: PayrollDisbursementStatus;
-  notes?: string | null;
-  approvedAt?: string | null;
-  disbursedAt?: string | null;
-  isPublished: boolean;
-  createdAt?: string;
-  updatedAt?: string;
+  monthYear: string;
+  grossSalary: number;
+  deduction: number;
+  bonus: number;
+  netSalary: number;
+  status: PayrollEntryStatus;
+  reason?: string | null;
+}
+
+export interface PayrollSummary {
+  totalGrossSalary: number;
+  totalDeduction: number;
+  totalBonus: number;
+  netDisbursement: number;
+  draftCount: number;
+  approvedCount: number;
+  rejectedCount: number;
+}
+
+export interface PayrollResult {
+  monthYear: string;
+  entries: PayrollEntry[];
+  summary: PayrollSummary;
 }
 
 export interface NavItem {

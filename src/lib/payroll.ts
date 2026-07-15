@@ -1,222 +1,342 @@
 import API from "@/lib/api";
 import type {
-  PayrollDisbursementStatus,
-  PayrollPayslipAction,
-  PayrollType,
-  Payslip,
+  PayrollEntry,
+  PayrollEntryAction,
+  PayrollEntryStatus,
+  PayrollResult,
+  PayrollStatusFilter,
+  PayrollSummary,
 } from "@/types";
 
-type ApiPayrollType = "MONTHLY" | "WEEKLY";
-type ApiPayrollDisbursementStatus = "PENDING" | "APPROVED" | "DISBURSED";
+type ApiPayrollEntryStatus = "DRAFT" | "APPROVED" | "REJECTED";
 
-interface ApiPayslipEarnings {
-  basicSalary: number;
-  hra: number;
-  specialAllowance: number;
-  grossPay: number;
-}
-
-interface ApiPayslipDeductions {
-  providentFund: number;
-  professionalTax: number;
-  totalDeductions: number;
-}
-
-interface ApiPayslip {
-  id: string;
-  employeeId: string;
-  employeeUserId: string;
-  employeeName: string;
-  payrollMonth: string;
-  periodStart: string;
-  periodEnd: string;
-  earnings: ApiPayslipEarnings;
-  deductions: ApiPayslipDeductions;
-  netPay: number;
-  annualCtc?: number;
-  payrollType: ApiPayrollType;
-  disbursementStatus: ApiPayrollDisbursementStatus;
-  notes?: string | null;
-  approvedAt?: string | null;
-  disbursedAt?: string | null;
-  isPublished: boolean;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-interface PayslipsResponse {
-  success: boolean;
-  message?: string;
-  count?: number;
-  payslips?: ApiPayslip[];
-}
-
-interface PayslipResponse {
-  success: boolean;
-  message?: string;
-  payslip?: ApiPayslip;
-}
-
-interface GeneratePayslipsResponse {
-  success: boolean;
-  message?: string;
-  created?: number;
-  skipped?: Array<{ employeeId: string; reason: string }>;
-}
-
-export interface AdminPayslipFilters {
-  payrollMonth?: string;
-  disbursementStatus?: PayrollDisbursementStatus;
+interface ApiPayrollEntry {
   employeeId?: string;
+  employeeName?: string;
+  name?: string;
+  monthYear?: string;
+  grossSalary?: number;
+  deduction?: number;
+  bonus?: number;
+  netSalary?: number;
+  netPay?: number;
+  status?: ApiPayrollEntryStatus;
+  reason?: string | null;
+  actionReason?: string | null;
 }
 
-function mapPayrollType(type: ApiPayrollType): PayrollType {
-  return type.toLowerCase() as PayrollType;
+interface ApiPayrollSummary {
+  totalGrossSalary?: number;
+  totalDeduction?: number;
+  totalBonus?: number;
+  netDisbursement?: number;
+  draftCount?: number;
+  approvedCount?: number;
+  rejectedCount?: number;
 }
 
-function mapDisbursementStatus(
-  status: ApiPayrollDisbursementStatus
-): PayrollDisbursementStatus {
-  return status.toLowerCase() as PayrollDisbursementStatus;
-}
-
-function toApiDisbursementStatus(
-  status: PayrollDisbursementStatus
-): ApiPayrollDisbursementStatus {
-  return status.toUpperCase() as ApiPayrollDisbursementStatus;
-}
-
-function mapApiPayslip(api: ApiPayslip): Payslip {
-  return {
-    id: api.id,
-    employeeId: api.employeeId,
-    employeeUserId: api.employeeUserId,
-    employeeName: api.employeeName,
-    payrollMonth: api.payrollMonth,
-    periodStart: api.periodStart,
-    periodEnd: api.periodEnd,
-    earnings: api.earnings,
-    deductions: api.deductions,
-    netPay: api.netPay,
-    annualCtc: api.annualCtc,
-    payrollType: mapPayrollType(api.payrollType),
-    disbursementStatus: mapDisbursementStatus(api.disbursementStatus),
-    notes: api.notes,
-    approvedAt: api.approvedAt,
-    disbursedAt: api.disbursedAt,
-    isPublished: api.isPublished,
-    createdAt: api.createdAt,
-    updatedAt: api.updatedAt,
+interface AdminPayrollResponse {
+  success: boolean;
+  message?: string;
+  monthYear?: string;
+  employeeSalary?: ApiPayrollEntry[];
+  employeeSalaries?: ApiPayrollEntry[];
+  entries?: ApiPayrollEntry[];
+  payroll?: {
+    monthYear?: string;
+    employeeSalary?: ApiPayrollEntry[];
+    employeeSalaries?: ApiPayrollEntry[];
+    entries?: ApiPayrollEntry[];
+    summary?: ApiPayrollSummary;
+  };
+  summary?: ApiPayrollSummary;
+  data?: {
+    monthYear?: string;
+    employeeSalary?: ApiPayrollEntry[];
+    employeeSalaries?: ApiPayrollEntry[];
+    entries?: ApiPayrollEntry[];
+    summary?: ApiPayrollSummary;
   };
 }
 
-export async function getAdminPayslips(
-  filters?: AdminPayslipFilters
-): Promise<Payslip[]> {
-  const params: Record<string, string> = {};
-
-  if (filters?.payrollMonth) {
-    params.payrollMonth = filters.payrollMonth;
-  }
-  if (filters?.employeeId) {
-    params.employeeId = filters.employeeId;
-  }
-  if (filters?.disbursementStatus) {
-    params.disbursementStatus = toApiDisbursementStatus(filters.disbursementStatus);
-  }
-
-  const { data } = await API.get<PayslipsResponse>("/admin/payroll/payslips", {
-    params,
-  });
-
-  if (!data.success) {
-    throw new Error(data.message ?? "Failed to fetch payroll records");
-  }
-
-  return (data.payslips ?? []).map(mapApiPayslip);
+interface GeneratePayrollResponse {
+  success: boolean;
+  message?: string;
 }
 
-export async function createAdminPayslip(input: {
-  employeeUserId: string;
-  payrollMonth: string;
-  notes?: string;
-}): Promise<Payslip> {
-  const { data } = await API.post<PayslipResponse>("/admin/payroll/payslips", input);
-
-  if (!data.success || !data.payslip) {
-    throw new Error(data.message ?? "Failed to create payslip");
-  }
-
-  return mapApiPayslip(data.payslip);
+interface MutatePayrollEntryResponse {
+  success: boolean;
+  message?: string;
+  employeeSalary?: ApiPayrollEntry;
+  entry?: ApiPayrollEntry;
+  data?: ApiPayrollEntry;
 }
 
-export async function generateAdminMonthlyPayslips(
-  payrollMonth: string
-): Promise<GeneratePayslipsResponse> {
-  const { data } = await API.post<GeneratePayslipsResponse>(
-    "/admin/payroll/payslips/generate",
-    { payrollMonth }
+interface EmployeePayrollResponse {
+  success: boolean;
+  message?: string;
+  employeeSalary?: ApiPayrollEntry;
+  payroll?: ApiPayrollEntry | { employeeSalary?: ApiPayrollEntry };
+  data?: ApiPayrollEntry | { employeeSalary?: ApiPayrollEntry };
+}
+
+export interface EditPayrollEntryInput {
+  grossSalary?: number;
+  deduction?: number;
+  bonus?: number;
+}
+
+function mapEntryStatus(status?: ApiPayrollEntryStatus): PayrollEntryStatus {
+  switch (status) {
+    case "APPROVED":
+      return "approved";
+    case "REJECTED":
+      return "rejected";
+    case "DRAFT":
+    default:
+      return "draft";
+  }
+}
+
+function computeNetSalary(
+  grossSalary: number,
+  deduction: number,
+  bonus: number
+): number {
+  return grossSalary - deduction + bonus;
+}
+
+function mapApiPayrollEntry(
+  api: ApiPayrollEntry,
+  monthYear: string
+): PayrollEntry {
+  const grossSalary = Number(api.grossSalary ?? 0);
+  const deduction = Number(api.deduction ?? 0);
+  const bonus = Number(api.bonus ?? 0);
+  const netSalary = Number(
+    api.netSalary ?? api.netPay ?? computeNetSalary(grossSalary, deduction, bonus)
+  );
+
+  return {
+    employeeId: api.employeeId ?? "",
+    employeeName: api.employeeName ?? api.name ?? api.employeeId ?? "Unknown",
+    monthYear: api.monthYear ?? monthYear,
+    grossSalary,
+    deduction,
+    bonus,
+    netSalary,
+    status: mapEntryStatus(api.status),
+    reason: api.reason ?? api.actionReason ?? null,
+  };
+}
+
+function emptySummary(): PayrollSummary {
+  return {
+    totalGrossSalary: 0,
+    totalDeduction: 0,
+    totalBonus: 0,
+    netDisbursement: 0,
+    draftCount: 0,
+    approvedCount: 0,
+    rejectedCount: 0,
+  };
+}
+
+function mapApiSummary(
+  api: ApiPayrollSummary | undefined,
+  entries: PayrollEntry[]
+): PayrollSummary {
+  if (api) {
+    return {
+      totalGrossSalary: Number(api.totalGrossSalary ?? 0),
+      totalDeduction: Number(api.totalDeduction ?? 0),
+      totalBonus: Number(api.totalBonus ?? 0),
+      netDisbursement: Number(api.netDisbursement ?? 0),
+      draftCount: Number(api.draftCount ?? 0),
+      approvedCount: Number(api.approvedCount ?? 0),
+      rejectedCount: Number(api.rejectedCount ?? 0),
+    };
+  }
+
+  return entries.reduce(
+    (acc, entry) => {
+      acc.totalGrossSalary += entry.grossSalary;
+      acc.totalDeduction += entry.deduction;
+      acc.totalBonus += entry.bonus;
+      acc.netDisbursement += entry.netSalary;
+      if (entry.status === "draft") acc.draftCount += 1;
+      if (entry.status === "approved") acc.approvedCount += 1;
+      if (entry.status === "rejected") acc.rejectedCount += 1;
+      return acc;
+    },
+    emptySummary()
+  );
+}
+
+function extractAdminPayrollPayload(data: AdminPayrollResponse) {
+  const nested = data.payroll ?? data.data;
+  const monthYear = data.monthYear ?? nested?.monthYear ?? "";
+  const entries =
+    data.employeeSalary ??
+    data.employeeSalaries ??
+    data.entries ??
+    nested?.employeeSalary ??
+    nested?.employeeSalaries ??
+    nested?.entries ??
+    [];
+  const summary = data.summary ?? nested?.summary;
+
+  return { monthYear, entries, summary };
+}
+
+export async function generateAdminPayroll(
+  monthYear: string
+): Promise<GeneratePayrollResponse> {
+  const { data } = await API.post<GeneratePayrollResponse>(
+    "/admin/payroll/generate",
+    { monthYear }
   );
 
   if (!data.success) {
-    throw new Error(data.message ?? "Failed to generate monthly payslips");
+    throw new Error(data.message ?? "Failed to generate payroll");
   }
 
   return data;
 }
 
-export async function updateAdminPayslipStatus(
-  payslipId: string,
-  action: PayrollPayslipAction
-): Promise<Payslip> {
-  const { data } = await API.put<PayslipResponse>(
-    `/admin/payroll/payslips/${payslipId}/status`,
-    { action }
-  );
+export async function getAdminPayroll(filters: {
+  monthYear: string;
+  status?: PayrollStatusFilter;
+}): Promise<PayrollResult> {
+  const { data } = await API.get<AdminPayrollResponse>("/admin/payroll", {
+    params: {
+      monthYear: filters.monthYear,
+      status: filters.status ?? "ALL",
+    },
+  });
 
-  if (!data.success || !data.payslip) {
-    throw new Error(data.message ?? "Failed to update payslip status");
+  if (!data.success) {
+    throw new Error(data.message ?? "Failed to fetch payroll");
   }
 
-  return mapApiPayslip(data.payslip);
+  const payload = extractAdminPayrollPayload(data);
+  const monthYear = payload.monthYear || filters.monthYear;
+  const entries = payload.entries.map((entry) =>
+    mapApiPayrollEntry(entry, monthYear)
+  );
+
+  return {
+    monthYear,
+    entries,
+    summary: mapApiSummary(payload.summary, entries),
+  };
 }
 
-export async function deleteAdminPayslip(payslipId: string): Promise<void> {
-  const { data } = await API.delete<{ success: boolean; message?: string }>(
-    `/admin/payroll/payslips/${payslipId}`
+export async function editAdminPayrollEntry(
+  monthYear: string,
+  employeeId: string,
+  input: EditPayrollEntryInput
+): Promise<PayrollEntry | null> {
+  const { data } = await API.put<MutatePayrollEntryResponse>(
+    `/admin/payroll/${monthYear}/employees/${employeeId}`,
+    input
   );
 
   if (!data.success) {
-    throw new Error(data.message ?? "Failed to delete payslip");
+    throw new Error(data.message ?? "Failed to update payroll entry");
   }
+
+  const entry = data.employeeSalary ?? data.entry ?? data.data;
+  return entry ? mapApiPayrollEntry(entry, monthYear) : null;
 }
 
-export async function getEmployeePayslips(): Promise<Payslip[]> {
-  const { data } = await API.get<PayslipsResponse>("/employee/payslips");
+export async function actionAdminPayrollEntry(
+  monthYear: string,
+  employeeId: string,
+  input: { action: PayrollEntryAction; reason?: string }
+): Promise<PayrollEntry | null> {
+  const payload = {
+    action: input.action,
+    ...(input.reason?.trim() ? { reason: input.reason.trim() } : {}),
+  };
+
+  const { data } = await API.put<MutatePayrollEntryResponse>(
+    `/admin/payroll/${monthYear}/employees/${employeeId}/action`,
+    payload
+  );
 
   if (!data.success) {
-    throw new Error(data.message ?? "Failed to fetch payslips");
+    throw new Error(data.message ?? "Failed to update payroll entry status");
   }
 
-  return (data.payslips ?? []).map(mapApiPayslip);
+  const entry = data.employeeSalary ?? data.entry ?? data.data;
+  return entry ? mapApiPayrollEntry(entry, monthYear) : null;
 }
 
-export async function downloadEmployeePayslip(payslip: Payslip): Promise<void> {
-  const response = await API.get<Blob>(`/employee/payslips/${payslip.id}/download`, {
+function isWrappedEmployeeEntry(
+  value: NonNullable<
+    EmployeePayrollResponse["payroll"] | EmployeePayrollResponse["data"]
+  >
+): value is { employeeSalary?: ApiPayrollEntry } {
+  return "employeeSalary" in value;
+}
+
+function unwrapEmployeeEntry(
+  value: EmployeePayrollResponse["payroll"] | EmployeePayrollResponse["data"]
+): ApiPayrollEntry | undefined {
+  if (!value) return undefined;
+  if (isWrappedEmployeeEntry(value)) {
+    return value.employeeSalary;
+  }
+  return value;
+}
+
+export async function getEmployeePayroll(
+  monthYear: string
+): Promise<PayrollEntry | null> {
+  const { data } = await API.get<EmployeePayrollResponse>("/employee/payroll", {
+    params: { monthYear },
+  });
+
+  if (!data.success) {
+    throw new Error(data.message ?? "Failed to fetch payroll");
+  }
+
+  const entry =
+    data.employeeSalary ??
+    unwrapEmployeeEntry(data.payroll) ??
+    unwrapEmployeeEntry(data.data);
+
+  if (!entry) {
+    return null;
+  }
+
+  return mapApiPayrollEntry(entry, monthYear);
+}
+
+export async function downloadEmployeeSalarySlip(
+  monthYear: string
+): Promise<void> {
+  const response = await API.get<Blob>("/employee/payroll/salary-slip", {
+    params: { monthYear },
     responseType: "blob",
   });
 
-  const blob = new Blob([response.data], { type: "text/html;charset=utf-8" });
+  const contentType = String(response.headers["content-type"] ?? "");
+  const isPdf = contentType.includes("pdf");
+  const blob = new Blob([response.data], {
+    type: isPdf ? "application/pdf" : contentType || "application/octet-stream",
+  });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `payslip-${payslip.payrollMonth}-${payslip.employeeId}.html`;
+  link.download = `salary-slip-${monthYear}.${isPdf ? "pdf" : "html"}`;
   link.click();
   URL.revokeObjectURL(url);
 }
 
-export function formatPayrollMonthLabel(payrollMonth: string): string {
-  const [year, month] = payrollMonth.split("-").map(Number);
+export function formatPayrollMonthLabel(monthYear: string): string {
+  const [year, month] = monthYear.split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1, 1));
   return date.toLocaleDateString("en-IN", {
     month: "long",
